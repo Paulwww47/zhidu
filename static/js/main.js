@@ -88,7 +88,7 @@ function initEditors() {
     tinymce.init({
         selector: SECTIONS.map(s => '#' + s.id).join(','),
         language: 'zh_CN',
-        language_url: '/tinymce/langs/zh_CN.js',
+        language_url: '/static/tinymce/langs/zh_CN.js',
         skin_url: '/tinymce/skins/ui/oxide',
         content_css: '/tinymce/skins/content/default/content.min.css',
         height: 450,
