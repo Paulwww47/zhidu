@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理员面板</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css?v=6">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container-fluid px-4">
+            <span class="navbar-brand mb-0">管理员面板</span>
+            <div>
+                <a href="/" class="btn btn-outline-light btn-sm me-2">返回编辑页</a>
+                <a href="/admin/logout" class="btn btn-outline-danger btn-sm">退出登录</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container my-4" style="max-width: 1060px;">
+        <!-- AI Model Configuration -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">AI 模型配置</h5>
+            </div>
+            <div class="card-body">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>名称</th>
+                            <th>协议类型</th>
+                            <th>模型</th>
+                            <th>API Base URL</th>
+                            <th>API Key</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in configs %}
+                        <tr>
+                            <td>{{ c.name }}</td>
+                            <td><code>{{ c.api_type }}</code></td>
+                            <td><code>{{ c.model }}</code></td>
+                            <td><code>{{ c.base_url }}</code></td>
+                            <td><code>{{ c.api_key[:8] }}...{{ c.api_key[-4:] }}</code></td>
+                            <td>
+                                {% if c.is_active %}
+                                <span class="badge active-badge">启用中</span>
+                                {% else %}
+                                <span class="badge inactive-badge">未启用</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if not c.is_active %}
+                                <form method="POST" action="/admin/config/activate/{{ c.id }}" class="d-inline">
+                                    <button class="btn btn-success btn-sm">启用</button>
+                                </form>
+                                {% endif %}
+                                <form method="POST" action="/admin/config/delete/{{ c.id }}" class="d-inline"
+                                      onsubmit="return confirm('确定删除此配置？')">
+                                    <button class="btn btn-danger btn-sm">删除</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <!-- Add new config -->
+                <h6 class="admin-section-title">添加新模型配置</h6>
+                <form method="POST" action="/admin/config/add" class="row g-2 align-items-end">
+                    <div class="col-md-2">
+                        <label class="form-label">名称</label>
+                        <input type="text" name="name" class="form-control" placeholder="如: DeepSeek V3" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">协议类型</label>
+                        <select name="api_type" class="form-select" required>
+                            <option value="openai">OpenAI 兼容</option>
+                            <option value="anthropic">Anthropic</option>
+                        </select>
+                        <div class="form-text">DeepSeek/OpenAI/Moonshot 等选 OpenAI 兼容；Claude 选 Anthropic</div>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">模型ID</label>
+                        <input type="text" name="model" class="form-control" placeholder="如: deepseek-chat" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">API Base URL</label>
+                        <input type="text" name="base_url" class="form-control" placeholder="https://api.deepseek.com" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">API Key</label>
+                        <input type="text" name="api_key" class="form-control" placeholder="sk-..." required>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">添加</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Change Password -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">修改密码</h5>
+            </div>
+            <div class="card-body">
+                <form id="pwForm" class="row g-2 align-items-end" onsubmit="changePassword(event)">
+                    <div class="col-md-4">
+                        <label class="form-label">旧密码</label>
+                        <input type="password" id="oldPw" class="form-control" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">新密码</label>
+                        <input type="password" id="newPw" class="form-control" required>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-warning w-100">修改密码</button>
+                    </div>
+                </form>
+                <div id="pwMsg" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    async function changePassword(e) {
+        e.preventDefault();
+        const form = new FormData();
+        form.append('old_password', document.getElementById('oldPw').value);
+        form.append('new_password', document.getElementById('newPw').value);
+        const resp = await fetch('/admin/password', { method: 'POST', body: form });
+        const data = await resp.json();
+        const msgEl = document.getElementById('pwMsg');
+        if (data.success) {
+            msgEl.innerHTML = '<div class="alert alert-success py-2">密码修改成功</div>';
+            document.getElementById('pwForm').reset();
+        } else {
+            msgEl.innerHTML = '<div class="alert alert-danger py-2">' + (data.error || '修改失败') + '</div>';
+        }
+    }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

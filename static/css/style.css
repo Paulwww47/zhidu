@@ -1,0 +1,710 @@
+/* ===================================
+   Design System Based on Apple HIG
+   ===================================
+   Colors ......... iOS system colors (Light Mode)
+   Typography ..... SF Pro / system font stack
+   Spacing ........ iOS 16pt side margins, 44pt min tap target
+   Radii .......... 8px standard, 12px cards, capsule CTAs
+   Separator ...... rgba(60,60,67,0.29) per HIG spec
+   Background ..... #F2F2F7 (systemGray6)
+   Label colors ... primary #1d1d1f, secondary rgba(60,60,67,0.6)
+
+   Sources:
+   - developer.apple.com/design/human-interface-guidelines
+   - iOS text styles: Body 17pt/22pt, Headline 17pt Semibold,
+     Footnote 13pt/18pt, Caption1 12pt/16pt, Caption2 11pt/13pt
+   =================================== */
+
+:root {
+    /* --- System Tint Colors (Light Mode) --- */
+    --sys-blue: #007AFF;
+    --sys-blue-hover: #0056B3;
+    --sys-green: #34C759;
+    --sys-red: #FF3B30;
+    --sys-orange: #FF9500;
+    --sys-yellow: #FFCC00;
+    --sys-teal: #30B0C7;
+    --sys-indigo: #5856D6;
+
+    /* --- System Gray Scale --- */
+    --sys-gray:  #8E8E93;
+    --sys-gray2: #AEAEB2;
+    --sys-gray3: #C7C7CC;
+    --sys-gray4: #D1D1D6;
+    --sys-gray5: #E5E5EA;
+    --sys-gray6: #F2F2F7;
+
+    /* --- Label Colors (Light Mode) --- */
+    --label-primary:    #1d1d1f;
+    --label-secondary:  rgba(60, 60, 67, 0.60);
+    --label-tertiary:   rgba(60, 60, 67, 0.30);
+    --label-quaternary: rgba(60, 60, 67, 0.18);
+
+    /* --- Backgrounds (Light Mode) --- */
+    --bg-primary:   #FFFFFF;
+    --bg-secondary: #F2F2F7;  /* systemGray6 */
+    --bg-grouped:   #F2F2F7;
+
+    /* --- Separators --- */
+    --separator:        rgba(60, 60, 67, 0.29);
+    --separator-opaque: #C6C6C8;
+
+    /* --- Radii (HIG: 8px standard, capsule for large CTA) --- */
+    --radius-xs: 6px;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+
+    /* --- Shadows --- */
+    --shadow-card:       0 1px 4px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
+    --shadow-card-hover: 0 2px 8px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08);
+    --shadow-popup:      0 8px 32px rgba(0, 0, 0, 0.12);
+
+    /* --- Typography --- */
+    --font-system: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+                   system-ui, 'Helvetica Neue', 'Segoe UI',
+                   'PingFang SC', 'Microsoft YaHei', sans-serif;
+    --font-mono:   'SF Mono', ui-monospace, Menlo, Consolas, 'Courier New', monospace;
+
+    /* --- Motion --- */
+    --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+/* ===================================
+   Reset & Base
+   =================================== */
+* { -webkit-tap-highlight-color: transparent; }
+
+body {
+    background: var(--bg-secondary);
+    font-family: var(--font-system);
+    font-size: 15px;                       /* between Body 17pt and Subhead 15pt */
+    line-height: 1.33;                     /* Subheadline ratio: 20/15 */
+    color: var(--label-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Thin scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: rgba(60, 60, 67, 0.18); border-radius: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ===================================
+   Navbar — Frosted Glass
+   (Apple.com style: rgba white + blur)
+   =================================== */
+.navbar {
+    background: rgba(242, 242, 247, 0.72) !important;
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 0.5px solid var(--separator);
+    box-shadow: none !important;
+    position: sticky;
+    top: 0;
+    z-index: 1030;
+    padding: 10px 0;
+}
+
+.navbar .navbar-brand {
+    color: var(--label-primary) !important;
+    font-weight: 600;
+    font-size: 17px;
+    line-height: 1.29;
+    letter-spacing: -0.022em;
+}
+
+.navbar-label {
+    white-space: nowrap;
+}
+
+.navbar-sep {
+    margin: 0 10px;
+    color: var(--label-tertiary);
+    font-weight: 300;
+    font-size: 20px;
+}
+
+.doc-name-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1.5px solid transparent;
+    outline: none;
+    font-family: var(--font-system);
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--label-primary);
+    padding: 2px 0;
+    width: 280px;
+    transition: border-color 0.2s var(--ease);
+}
+.doc-name-input::placeholder {
+    color: var(--label-tertiary);
+    font-weight: 400;
+}
+.doc-name-input:focus {
+    border-bottom-color: var(--sys-blue);
+}
+
+/* Navbar outline buttons — capsule shape */
+.navbar .btn-outline-light {
+    color: var(--sys-blue) !important;
+    border: 1.5px solid var(--sys-blue) !important;
+    border-radius: 980px;
+    font-size: 13px;                       /* Footnote */
+    line-height: 1.38;                     /* 18/13 per HIG */
+    font-weight: 500;                      /* Medium */
+    padding: 6px 16px;
+    min-height: 34px;
+    background: transparent !important;
+    transition: all 0.25s var(--ease);
+}
+.navbar .btn-outline-light:hover {
+    background: var(--sys-blue) !important;
+    color: #fff !important;
+}
+
+.navbar .btn-outline-danger {
+    color: var(--sys-red) !important;
+    border: 1.5px solid var(--sys-red) !important;
+    border-radius: 980px;
+    font-size: 13px;
+    line-height: 1.38;
+    font-weight: 500;
+    padding: 6px 16px;
+    min-height: 34px;
+    background: transparent !important;
+    transition: all 0.25s var(--ease);
+}
+.navbar .btn-outline-danger:hover {
+    background: var(--sys-red) !important;
+    color: #fff !important;
+}
+
+/* ===================================
+   Editor Container
+   =================================== */
+#editorContainer {
+    max-width: 940px;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 28px 16px 60px;              /* 16px side margin per HIG */
+}
+
+/* ===================================
+   Section Cards
+   =================================== */
+.section-card {
+    background: var(--bg-primary);
+    border-radius: var(--radius-md);       /* 12px */
+    box-shadow: var(--shadow-card);
+    margin-bottom: 24px;
+    padding: 24px 24px 20px;
+    transition: box-shadow 0.3s var(--ease), transform 0.3s var(--ease);
+    border: 0.5px solid var(--separator-opaque);
+}
+.section-card:hover {
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-1px);
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.section-title {
+    font-size: 17px;                       /* Headline text style */
+    font-weight: 600;                      /* Semibold */
+    line-height: 1.29;                     /* 22/17 */
+    color: var(--label-primary);
+    margin: 0;
+    letter-spacing: -0.022em;
+}
+
+/* ===================================
+   Hint Tooltip
+   =================================== */
+.hint-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(0, 122, 255, 0.12);
+    color: var(--sys-blue);
+    font-size: 11px;                       /* Caption2 */
+    font-weight: 600;
+    margin-left: 8px;
+    cursor: help;
+    position: relative;
+    flex-shrink: 0;
+    transition: background 0.2s var(--ease);
+}
+.hint-icon:hover {
+    background: rgba(0, 122, 255, 0.22);
+}
+
+.hint-icon .hint-popup {
+    display: none;
+    position: absolute;
+    left: 28px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 380px;
+    max-height: 360px;
+    overflow-y: auto;
+    background: rgba(255, 255, 255, 0.94);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border: 0.5px solid var(--separator);
+    border-radius: var(--radius-md);       /* 12px */
+    box-shadow: var(--shadow-popup);
+    padding: 16px 20px;
+    font-size: 13px;                       /* Footnote */
+    font-weight: 400;                      /* Regular */
+    line-height: 1.38;                     /* 18/13 */
+    color: var(--label-primary);
+    z-index: 9999;
+    white-space: pre-wrap;
+}
+.hint-icon:hover .hint-popup {
+    display: block;
+}
+
+/* ===================================
+   AI Disclaimer
+   =================================== */
+.ai-disclaimer {
+    font-size: 12px;                       /* Caption1 */
+    line-height: 1.33;
+    color: var(--label-tertiary);
+    user-select: none;
+}
+
+/* ===================================
+   Editor Wrapper
+   =================================== */
+.editor-wrapper {
+    border: 0.5px solid var(--separator);
+    border-radius: var(--radius-sm);       /* 8px */
+    overflow: hidden;
+}
+
+/* ===================================
+   Action Row & AI Button
+   =================================== */
+.action-row {
+    display: flex;
+    align-items: center;
+    margin-top: 16px;
+    gap: 12px;
+}
+
+.btn-check-ai {
+    background: var(--sys-blue);
+    color: #fff;
+    border: none;
+    border-radius: 980px;                  /* Capsule — large CTA per WWDC25 */
+    padding: 9px 22px;
+    min-height: 36px;                      /* Approaching 44pt guideline */
+    font-size: 14px;
+    font-weight: 500;                      /* Medium */
+    font-family: var(--font-system);
+    cursor: pointer;
+    transition: all 0.25s var(--ease);
+    letter-spacing: -0.01em;
+}
+.btn-check-ai:hover {
+    background: var(--sys-blue-hover);
+}
+.btn-check-ai:active {
+    transform: scale(0.97);
+}
+.btn-check-ai:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* ===================================
+   AI Result Panel
+   =================================== */
+.ai-result {
+    margin-top: 16px;
+    padding: 20px 24px;
+    background: var(--bg-primary);
+    border: 0.5px solid var(--separator);
+    border-radius: var(--radius-md);
+    font-size: 15px;                       /* Subheadline */
+    line-height: 1.6;
+    color: var(--label-primary);
+    display: none;
+}
+.ai-result.show { display: block; }
+.ai-result.error {
+    background: rgba(255, 59, 48, 0.05);
+    border-color: rgba(255, 59, 48, 0.25);
+    color: var(--sys-red);
+}
+
+.ai-result p { margin: 0.5em 0; }
+.ai-result ul, .ai-result ol { margin: 0.4em 0; padding-left: 1.6em; }
+.ai-result li { margin: 0.2em 0; }
+.ai-result strong { color: var(--label-primary); font-weight: 600; }
+
+.ai-result h1, .ai-result h2, .ai-result h3,
+.ai-result h4, .ai-result h5, .ai-result h6 {
+    font-weight: 600;
+    color: var(--label-primary);
+}
+.ai-result h1 { font-size: 22px; line-height: 1.27; letter-spacing: -0.026em; margin: 0.8em 0 0.3em; }  /* Title2 */
+.ai-result h2 { font-size: 20px; line-height: 1.20; letter-spacing: -0.012em; margin: 0.7em 0 0.3em; }  /* Title3 */
+.ai-result h3 { font-size: 17px; line-height: 1.29; letter-spacing: -0.022em; margin: 0.6em 0 0.25em; } /* Headline */
+.ai-result h4, .ai-result h5, .ai-result h6 {
+    font-size: 15px; line-height: 1.33; margin: 0.6em 0 0.2em;                                           /* Subheadline */
+}
+
+.ai-result blockquote {
+    border-left: 3px solid var(--sys-blue);
+    margin: 0.6em 0;
+    padding: 0.4em 1em;
+    background: rgba(0, 122, 255, 0.04);
+    border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+    color: var(--label-secondary);
+}
+.ai-result code {
+    background: var(--sys-gray6);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: var(--font-mono);
+}
+.ai-result pre {
+    background: #1d1d1f;
+    color: #F2F2F7;
+    padding: 16px 20px;
+    border-radius: var(--radius-sm);
+    overflow-x: auto;
+    margin: 0.6em 0;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.5;
+}
+.ai-result pre code {
+    background: none;
+    color: inherit;
+    padding: 0;
+}
+.ai-result hr {
+    border: none;
+    border-top: 0.5px solid var(--separator);
+    margin: 0.8em 0;
+}
+.ai-result table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0.6em 0;
+}
+.ai-result th, .ai-result td {
+    border: 0.5px solid var(--separator);
+    padding: 8px 12px;
+    text-align: left;
+    font-size: 13px;
+    line-height: 1.38;
+}
+.ai-result th {
+    background: var(--sys-gray6);
+    font-weight: 600;
+}
+
+/* ===================================
+   Spinner
+   =================================== */
+.spinner-sm {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ===================================
+   Export Button
+   =================================== */
+#exportBtn {
+    background: var(--sys-blue) !important;
+    border: none !important;
+    color: #fff !important;
+    border-radius: 980px !important;
+    padding: 7px 20px !important;
+    min-height: 34px;
+    font-weight: 500 !important;
+    font-size: 14px !important;
+    letter-spacing: -0.01em;
+    transition: all 0.25s var(--ease) !important;
+}
+#exportBtn:hover {
+    background: var(--sys-blue-hover) !important;
+}
+#exportBtn:active {
+    transform: scale(0.97);
+}
+
+/* ===================================
+   Bootstrap Overrides — Forms
+   (per HIG: clear borders, blue focus ring)
+   =================================== */
+.form-control, .form-select {
+    border: 1px solid var(--sys-gray3);    /* #C7C7CC */
+    border-radius: var(--radius-sm);       /* 8px */
+    padding: 9px 12px;
+    font-size: 15px;                       /* Subheadline */
+    line-height: 1.33;
+    font-family: var(--font-system);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    color: var(--label-primary);
+    background: var(--bg-primary);
+}
+.form-control:focus, .form-select:focus {
+    border-color: var(--sys-blue);
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2);
+    outline: none;
+}
+.form-control::placeholder {
+    color: var(--label-tertiary);
+}
+.form-label {
+    font-size: 13px;                       /* Footnote */
+    font-weight: 500;                      /* Medium */
+    color: var(--label-secondary);
+    margin-bottom: 6px;
+    line-height: 1.38;
+}
+.form-text {
+    font-size: 12px;                       /* Caption1 */
+    color: var(--label-tertiary);
+    line-height: 1.33;
+    margin-top: 4px;
+}
+
+/* ===================================
+   Bootstrap Overrides — Buttons
+   (HIG: avoid light weights, use 44pt tap)
+   =================================== */
+.btn {
+    transition: all 0.25s var(--ease);
+    font-family: var(--font-system);
+    font-weight: 500;
+}
+.btn:active { transform: scale(0.97); }
+
+.btn-primary {
+    background: var(--sys-blue) !important;
+    border: none !important;
+    border-radius: var(--radius-sm) !important;
+}
+.btn-primary:hover, .btn-primary:focus {
+    background: var(--sys-blue-hover) !important;
+}
+
+.btn-success {
+    background: var(--sys-green) !important;
+    border: none !important;
+    border-radius: var(--radius-sm) !important;
+}
+.btn-success:hover, .btn-success:focus {
+    background: #2db84e !important;
+}
+
+.btn-danger {
+    background: var(--sys-red) !important;
+    border: none !important;
+    border-radius: var(--radius-sm) !important;
+}
+.btn-danger:hover, .btn-danger:focus {
+    background: #e6352b !important;
+}
+
+.btn-warning {
+    background: var(--sys-orange) !important;
+    border: none !important;
+    border-radius: var(--radius-sm) !important;
+    color: #fff !important;
+}
+.btn-warning:hover, .btn-warning:focus {
+    background: #e68600 !important;
+    color: #fff !important;
+}
+
+/* ===================================
+   Bootstrap Overrides — Cards
+   =================================== */
+.card {
+    border: 0.5px solid var(--separator-opaque);
+    border-radius: var(--radius-md) !important;
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+}
+.card-header {
+    background: var(--bg-primary) !important;
+    border-bottom: 0.5px solid var(--separator) !important;
+    padding: 18px 24px;
+    color: var(--label-primary) !important;
+}
+.card-header h5 {
+    font-size: 17px;                       /* Headline */
+    font-weight: 600;
+    line-height: 1.29;
+    color: var(--label-primary) !important;
+    letter-spacing: -0.022em;
+    margin: 0;
+}
+.card-body {
+    padding: 24px;
+}
+
+/* ===================================
+   Bootstrap Overrides — Tables
+   =================================== */
+.table {
+    font-size: 15px;
+    color: var(--label-primary);
+    margin-bottom: 0;
+}
+.table > thead > tr > th {
+    background: var(--sys-gray6) !important;
+    font-weight: 600;
+    font-size: 12px;                       /* Caption1 */
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--label-secondary);
+    border-color: var(--separator) !important;
+    padding: 10px 16px;
+}
+.table > tbody > tr > td {
+    padding: 12px 16px;
+    border-color: var(--separator) !important;
+    vertical-align: middle;
+}
+.table > tbody > tr:last-child > td {
+    border-bottom: none;
+}
+.table code {
+    background: var(--sys-gray6);
+    padding: 2px 8px;
+    border-radius: var(--radius-xs);
+    font-size: 12px;
+    color: var(--label-secondary);
+    font-family: var(--font-mono);
+}
+
+/* ===================================
+   Badges — Capsule shape
+   =================================== */
+.badge {
+    font-weight: 500;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 980px;
+}
+.active-badge {
+    background: var(--sys-green) !important;
+}
+.inactive-badge {
+    background: var(--sys-gray) !important;
+}
+
+/* ===================================
+   Alerts
+   =================================== */
+.alert {
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.33;
+}
+.alert-success {
+    background: rgba(52, 199, 89, 0.12);
+    color: #248a3d;                        /* accessible green on light bg */
+}
+.alert-danger {
+    background: rgba(255, 59, 48, 0.10);
+    color: #d70015;                        /* accessible red on light bg */
+}
+
+/* ===================================
+   Login Page
+   =================================== */
+.login-page {
+    background: var(--bg-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+}
+.login-card {
+    width: 400px;
+    border-radius: var(--radius-lg) !important;  /* 16px */
+    box-shadow: var(--shadow-popup) !important;
+    border: 0.5px solid var(--separator-opaque);
+}
+.login-card .card-body {
+    padding: 40px 36px;
+}
+.login-card .card-title {
+    font-size: 28px;                       /* Title1 */
+    font-weight: 600;
+    line-height: 1.21;                     /* 34/28 */
+    letter-spacing: -0.038em;
+    color: var(--label-primary);
+}
+.login-card .form-control {
+    padding: 11px 14px;
+    font-size: 17px;                       /* Body */
+    line-height: 1.29;
+}
+.login-card .btn-primary {
+    padding: 12px 20px !important;
+    min-height: 44px;                      /* 44pt minimum tap target */
+    font-size: 17px !important;            /* Body */
+    font-weight: 600 !important;
+    border-radius: var(--radius-sm) !important;
+    margin-top: 4px;
+}
+.login-card .form-label {
+    font-size: 15px;                       /* Subheadline */
+    line-height: 1.33;
+}
+.login-card a {
+    color: var(--sys-blue);
+    text-decoration: none;
+    font-size: 15px;
+    transition: opacity 0.2s;
+}
+.login-card a:hover {
+    opacity: 0.7;
+}
+
+/* ===================================
+   Admin — Section Title
+   =================================== */
+.admin-section-title {
+    font-size: 15px;                       /* Subheadline */
+    font-weight: 600;
+    line-height: 1.33;
+    color: var(--label-primary);
+    letter-spacing: -0.01em;
+    margin-top: 28px;
+    margin-bottom: 16px;
+}

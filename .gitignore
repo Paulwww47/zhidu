@@ -1,0 +1,30 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Database (contains API keys)
+zhidu.db
+
+# Uploads
+uploads/
+
+# Node
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temp/debug files
+*.docx
+debug_export.json
+
+# Claude Code
+.claude/
