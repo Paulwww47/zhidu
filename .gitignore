@@ -7,6 +7,9 @@ __pycache__/
 # Database (contains API keys)
 zhidu.db
 
+# Template (user-specific)
+template.docx
+
 # Uploads
 uploads/
 

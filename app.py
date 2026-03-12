@@ -445,23 +445,28 @@ def export_docx():
     data = request.json
     sections = data.get('sections', [])
 
-    doc = Document()
+    # Check if template exists
+    template_path = os.path.join(os.path.dirname(__file__), 'template.docx')
+    if os.path.exists(template_path):
+        doc = Document(template_path)
+    else:
+        doc = Document()
 
-    # Set default font
-    style = doc.styles['Normal']
-    font = style.font
-    font.name = '宋体'
-    font.size = Pt(12)  # 小四号 = 12pt
-    style.element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
+        # Set default font (only for new documents)
+        style = doc.styles['Normal']
+        font = style.font
+        font.name = '宋体'
+        font.size = Pt(12)  # 小四号 = 12pt
+        style.element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
 
-    from docx.shared import RGBColor
-    from docx.shared import Pt as PtSize
-    from docx.enum.text import WD_LINE_SPACING
+        from docx.shared import RGBColor
+        from docx.shared import Pt as PtSize
+        from docx.enum.text import WD_LINE_SPACING
 
-    # Normal style: 段前1行 段后1行 单倍行距
-    style.paragraph_format.space_before = Pt(12)   # 1行 = 1x字号(12pt)
-    style.paragraph_format.space_after = Pt(12)
-    style.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+        # Normal style: 段前1行 段后1行 单倍行距
+        style.paragraph_format.space_before = Pt(12)   # 1行 = 1x字号(12pt)
+        style.paragraph_format.space_after = Pt(12)
+        style.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
 
     for sec in sections:
         title = sec.get('title', '')
