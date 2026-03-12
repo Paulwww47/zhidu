@@ -445,6 +445,10 @@ def export_docx():
     data = request.json
     sections = data.get('sections', [])
 
+    from docx.shared import RGBColor
+    from docx.shared import Pt as PtSize
+    from docx.enum.text import WD_LINE_SPACING
+
     # Check if template exists
     template_path = os.path.join(os.path.dirname(__file__), 'template.docx')
     if os.path.exists(template_path):
@@ -458,10 +462,6 @@ def export_docx():
         font.name = '宋体'
         font.size = Pt(12)  # 小四号 = 12pt
         style.element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
-
-        from docx.shared import RGBColor
-        from docx.shared import Pt as PtSize
-        from docx.enum.text import WD_LINE_SPACING
 
         # Normal style: 段前1行 段后1行 单倍行距
         style.paragraph_format.space_before = Pt(12)   # 1行 = 1x字号(12pt)
@@ -576,10 +576,21 @@ def _parse_html_to_docx(doc, soup):
             for li in element.find_all('li', recursive=False):
                 para = doc.add_paragraph()
                 _add_formatted_runs(para, li, li.get_text())
-                if element.name == 'ul':
-                    para.style = doc.styles['List Bullet']
-                else:
-                    para.style = doc.styles['List Number']
+                try:
+                    if element.name == 'ul':
+                        para.style = doc.styles['List Bullet']
+                    else:
+                        para.style = doc.styles['List Number']
+                except KeyError:
+                    # Style doesn't exist in template, use manual formatting
+                    if element.name == 'ul':
+                        para.paragraph_format.left_indent = Pt(24)
+                        para.paragraph_format.first_line_indent = Pt(-12)
+                        para.add_run('• ').insert_paragraph_before()
+                        para.text = '• ' + para.text
+                    else:
+                        para.paragraph_format.left_indent = Pt(24)
+                        para.paragraph_format.first_line_indent = Pt(-12)
         elif element.name == 'table':
             _add_table_to_docx(doc, element)
         elif element.name in ('h1','h2','h3','h4','h5','h6'):
@@ -660,6 +671,7 @@ def _add_image_to_docx(doc, img_tag):
 
 def _add_formatted_runs(para, element, fallback_text):
     """Add runs with formatting from HTML element."""
+    from docx.shared import RGBColor
     if element is None:
         _set_run_font(para.add_run(fallback_text))
         return
@@ -680,8 +692,54 @@ def _add_formatted_runs(para, element, fallback_text):
             run = para.add_run(child.get_text())
             run.underline = True
             _set_run_font(run)
+        elif child.name == 'span':
+            # Handle span with inline styles (color, background, strikethrough)
+            run = para.add_run(child.get_text())
+            _set_run_font(run)
+            style_str = child.get('style', '')
+            # Text color
+            color_match = re.search(r'color:\s*rgb\((\d+),\s*(\d+),\s*(\d+)\)', style_str)
+            if not color_match:
+                color_match = re.search(r'color:\s*#([0-9a-fA-F]{6})', style_str)
+                if color_match:
+                    hex_color = color_match.group(1)
+                    run.font.color.rgb = RGBColor(int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16))
+            else:
+                run.font.color.rgb = RGBColor(int(color_match.group(1)), int(color_match.group(2)), int(color_match.group(3)))
+            # Background color (highlight)
+            bg_match = re.search(r'background-color:\s*rgb\((\d+),\s*(\d+),\s*(\d+)\)', style_str)
+            if not bg_match:
+                bg_match = re.search(r'background-color:\s*#([0-9a-fA-F]{6})', style_str)
+                if bg_match:
+                    hex_color = bg_match.group(1)
+                    run.font.highlight_color = _rgb_to_highlight(int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16))
+            else:
+                run.font.highlight_color = _rgb_to_highlight(int(bg_match.group(1)), int(bg_match.group(2)), int(bg_match.group(3)))
+            # Text decoration: line-through
+            if 'text-decoration: line-through' in style_str or 'text-decoration:line-through' in style_str:
+                run.font.strike = True
+        elif child.name == 's' or child.name == 'strike' or child.name == 'del':
+            run = para.add_run(child.get_text())
+            run.font.strike = True
+            _set_run_font(run)
         else:
             _set_run_font(para.add_run(child.get_text()))
+
+def _rgb_to_highlight(r, g, b):
+    """Map RGB to closest WD_COLOR_INDEX highlight color."""
+    from docx.enum.text import WD_COLOR_INDEX
+    # Simple mapping to common highlight colors
+    if r > 200 and g > 200 and b < 100:
+        return WD_COLOR_INDEX.YELLOW
+    elif r > 200 and g < 100 and b < 100:
+        return WD_COLOR_INDEX.RED
+    elif r < 100 and g > 200 and b < 100:
+        return WD_COLOR_INDEX.GREEN
+    elif r < 100 and g < 100 and b > 200:
+        return WD_COLOR_INDEX.BLUE
+    elif r > 200 and g > 150 and b < 100:
+        return WD_COLOR_INDEX.DARK_YELLOW
+    return None  # No highlight
 
 def _set_run_font(run):
     """Set font for a run: Chinese = 宋体, English = Times New Roman, size = 12pt."""
@@ -712,8 +770,26 @@ def _parse_width(style_str, width_attr):
 def _add_table_to_docx(doc, table_elem):
     """Convert HTML table to docx table, preserving column widths."""
     from docx.shared import Inches, Emu
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
     import base64
     import re
+
+    def set_cell_border(cell, **kwargs):
+        """Set cell border. kwargs: top, bottom, left, right, insideH, insideV
+        Example: set_cell_border(cell, top={"sz": 12, "val": "single", "color": "000000"})
+        """
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        tcBorders = OxmlElement('w:tcBorders')
+        for edge in ('top', 'left', 'bottom', 'right', 'insideH', 'insideV'):
+            if edge in kwargs:
+                edge_data = kwargs[edge]
+                edge_el = OxmlElement(f'w:{edge}')
+                for key, value in edge_data.items():
+                    edge_el.set(qn(f'w:{key}'), str(value))
+                tcBorders.append(edge_el)
+        tcPr.append(tcBorders)
 
     rows = table_elem.find_all('tr')
     if not rows:
@@ -722,7 +798,43 @@ def _add_table_to_docx(doc, table_elem):
     if max_cols == 0:
         return
     table = doc.add_table(rows=len(rows), cols=max_cols)
-    table.style = 'Table Grid'
+    # Apply 'Table Grid' style if available (may not exist in custom templates)
+    style_applied = False
+    try:
+        table.style = 'Table Grid'
+        style_applied = True
+    except KeyError:
+        pass  # Template doesn't have this style, will add borders manually
+
+    # If no style applied, manually add borders to all cells
+    if not style_applied:
+        border_config = {"sz": 4, "val": "single", "color": "000000"}
+        for row in table.rows:
+            for cell in row.cells:
+                set_cell_border(
+                    cell,
+                    top=border_config,
+                    bottom=border_config,
+                    left=border_config,
+                    right=border_config
+                )
+
+    # --- Parse table alignment from HTML ---
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    table_style = table_elem.get('style', '')
+    table_align_attr = table_elem.get('align', '')
+
+    # Check for margin: auto (center), margin-left: auto (right), or align attribute
+    if 'margin-left: auto' in table_style and 'margin-right: auto' in table_style:
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    elif 'margin-left: auto' in table_style:
+        table.alignment = WD_TABLE_ALIGNMENT.RIGHT
+    elif table_align_attr:
+        align_map = {'left': WD_TABLE_ALIGNMENT.LEFT, 'center': WD_TABLE_ALIGNMENT.CENTER, 'right': WD_TABLE_ALIGNMENT.RIGHT}
+        table.alignment = align_map.get(table_align_attr.lower(), WD_TABLE_ALIGNMENT.LEFT)
+    # TinyMCE may also use float or text-align on wrapper
+    elif 'float: right' in table_style or 'float:right' in table_style:
+        table.alignment = WD_TABLE_ALIGNMENT.RIGHT
 
     # --- Resolve column widths ---
     total_width_inches = 6.0  # A4 usable width with 1-inch margins
