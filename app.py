@@ -909,14 +909,15 @@ def _add_table_to_docx(doc, table_elem):
             docx_cell = table.rows[i].cells[j]
             # Clear default empty paragraph
             docx_cell.text = ''
-            # Vertical alignment: parse from style (only set if explicitly specified)
+            # Vertical alignment: parse from style, default to CENTER (Word table default)
             cell_style = cell.get('style', '')
             va_match = re.search(r'vertical-align:\s*(top|middle|bottom)', cell_style, re.IGNORECASE)
             if va_match:
                 va_map = {'top': WD_ALIGN_VERTICAL.TOP, 'middle': WD_ALIGN_VERTICAL.CENTER, 'bottom': WD_ALIGN_VERTICAL.BOTTOM}
-                valign = va_map.get(va_match.group(1).lower())
-                if valign is not None:
-                    docx_cell.vertical_alignment = valign
+                docx_cell.vertical_alignment = va_map.get(va_match.group(1).lower(), WD_ALIGN_VERTICAL.CENTER)
+            else:
+                # Default to center if not specified (common Word table behavior)
+                docx_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
             _fill_cell(doc, docx_cell, cell)
 
 

@@ -139,9 +139,10 @@ function initEditors() {
                             type: 'menuitem',
                             text: '顶部对齐',
                             onAction: function() {
-                                var selectedCells = editor.dom.select('td.mce-item-selected,th.mce-item-selected');
-                                if (selectedCells.length > 0) {
-                                    selectedCells.forEach(function(cell) {
+                                var table = editor.plugins.table;
+                                var cells = table ? table.getSelectedCells() : [];
+                                if (cells.length > 0) {
+                                    cells.forEach(function(cell) {
                                         cell.style.verticalAlign = 'top';
                                     });
                                 } else {
@@ -155,9 +156,10 @@ function initEditors() {
                             type: 'menuitem',
                             text: '垂直居中',
                             onAction: function() {
-                                var selectedCells = editor.dom.select('td.mce-item-selected,th.mce-item-selected');
-                                if (selectedCells.length > 0) {
-                                    selectedCells.forEach(function(cell) {
+                                var table = editor.plugins.table;
+                                var cells = table ? table.getSelectedCells() : [];
+                                if (cells.length > 0) {
+                                    cells.forEach(function(cell) {
                                         cell.style.verticalAlign = 'middle';
                                     });
                                 } else {
@@ -171,9 +173,10 @@ function initEditors() {
                             type: 'menuitem',
                             text: '底部对齐',
                             onAction: function() {
-                                var selectedCells = editor.dom.select('td.mce-item-selected,th.mce-item-selected');
-                                if (selectedCells.length > 0) {
-                                    selectedCells.forEach(function(cell) {
+                                var table = editor.plugins.table;
+                                var cells = table ? table.getSelectedCells() : [];
+                                if (cells.length > 0) {
+                                    cells.forEach(function(cell) {
                                         cell.style.verticalAlign = 'bottom';
                                     });
                                 } else {
