@@ -139,24 +139,48 @@ function initEditors() {
                             type: 'menuitem',
                             text: '顶部对齐',
                             onAction: function() {
-                                var cell = editor.selection.getNode().closest('td,th');
-                                if (cell) { cell.style.verticalAlign = 'top'; editor.nodeChanged(); }
+                                var selectedCells = editor.dom.select('td.mce-item-selected,th.mce-item-selected');
+                                if (selectedCells.length > 0) {
+                                    selectedCells.forEach(function(cell) {
+                                        cell.style.verticalAlign = 'top';
+                                    });
+                                } else {
+                                    var cell = editor.selection.getNode().closest('td,th');
+                                    if (cell) cell.style.verticalAlign = 'top';
+                                }
+                                editor.nodeChanged();
                             }
                         },
                         {
                             type: 'menuitem',
                             text: '垂直居中',
                             onAction: function() {
-                                var cell = editor.selection.getNode().closest('td,th');
-                                if (cell) { cell.style.verticalAlign = 'middle'; editor.nodeChanged(); }
+                                var selectedCells = editor.dom.select('td.mce-item-selected,th.mce-item-selected');
+                                if (selectedCells.length > 0) {
+                                    selectedCells.forEach(function(cell) {
+                                        cell.style.verticalAlign = 'middle';
+                                    });
+                                } else {
+                                    var cell = editor.selection.getNode().closest('td,th');
+                                    if (cell) cell.style.verticalAlign = 'middle';
+                                }
+                                editor.nodeChanged();
                             }
                         },
                         {
                             type: 'menuitem',
                             text: '底部对齐',
                             onAction: function() {
-                                var cell = editor.selection.getNode().closest('td,th');
-                                if (cell) { cell.style.verticalAlign = 'bottom'; editor.nodeChanged(); }
+                                var selectedCells = editor.dom.select('td.mce-item-selected,th.mce-item-selected');
+                                if (selectedCells.length > 0) {
+                                    selectedCells.forEach(function(cell) {
+                                        cell.style.verticalAlign = 'bottom';
+                                    });
+                                } else {
+                                    var cell = editor.selection.getNode().closest('td,th');
+                                    if (cell) cell.style.verticalAlign = 'bottom';
+                                }
+                                editor.nodeChanged();
                             }
                         }
                     ]);
