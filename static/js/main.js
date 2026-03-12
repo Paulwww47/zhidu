@@ -139,15 +139,18 @@ function initEditors() {
                             type: 'menuitem',
                             text: '顶部对齐',
                             onAction: function() {
-                                var table = editor.plugins.table;
-                                var cells = table ? table.getSelectedCells() : [];
-                                if (cells.length > 0) {
-                                    cells.forEach(function(cell) {
-                                        cell.style.verticalAlign = 'top';
+                                // Get all selected cells (TinyMCE adds data-mce-selected attribute)
+                                var selectedCells = editor.dom.select('td[data-mce-selected],th[data-mce-selected]');
+                                if (selectedCells.length > 0) {
+                                    selectedCells.forEach(function(cell) {
+                                        editor.dom.setStyle(cell, 'vertical-align', 'top');
                                     });
                                 } else {
-                                    var cell = editor.selection.getNode().closest('td,th');
-                                    if (cell) cell.style.verticalAlign = 'top';
+                                    // Single cell selection
+                                    var cell = editor.dom.getParent(editor.selection.getStart(), 'td,th');
+                                    if (cell) {
+                                        editor.dom.setStyle(cell, 'vertical-align', 'top');
+                                    }
                                 }
                                 editor.nodeChanged();
                             }
@@ -156,15 +159,16 @@ function initEditors() {
                             type: 'menuitem',
                             text: '垂直居中',
                             onAction: function() {
-                                var table = editor.plugins.table;
-                                var cells = table ? table.getSelectedCells() : [];
-                                if (cells.length > 0) {
-                                    cells.forEach(function(cell) {
-                                        cell.style.verticalAlign = 'middle';
+                                var selectedCells = editor.dom.select('td[data-mce-selected],th[data-mce-selected]');
+                                if (selectedCells.length > 0) {
+                                    selectedCells.forEach(function(cell) {
+                                        editor.dom.setStyle(cell, 'vertical-align', 'middle');
                                     });
                                 } else {
-                                    var cell = editor.selection.getNode().closest('td,th');
-                                    if (cell) cell.style.verticalAlign = 'middle';
+                                    var cell = editor.dom.getParent(editor.selection.getStart(), 'td,th');
+                                    if (cell) {
+                                        editor.dom.setStyle(cell, 'vertical-align', 'middle');
+                                    }
                                 }
                                 editor.nodeChanged();
                             }
@@ -173,15 +177,16 @@ function initEditors() {
                             type: 'menuitem',
                             text: '底部对齐',
                             onAction: function() {
-                                var table = editor.plugins.table;
-                                var cells = table ? table.getSelectedCells() : [];
-                                if (cells.length > 0) {
-                                    cells.forEach(function(cell) {
-                                        cell.style.verticalAlign = 'bottom';
+                                var selectedCells = editor.dom.select('td[data-mce-selected],th[data-mce-selected]');
+                                if (selectedCells.length > 0) {
+                                    selectedCells.forEach(function(cell) {
+                                        editor.dom.setStyle(cell, 'vertical-align', 'bottom');
                                     });
                                 } else {
-                                    var cell = editor.selection.getNode().closest('td,th');
-                                    if (cell) cell.style.verticalAlign = 'bottom';
+                                    var cell = editor.dom.getParent(editor.selection.getStart(), 'td,th');
+                                    if (cell) {
+                                        editor.dom.setStyle(cell, 'vertical-align', 'bottom');
+                                    }
                                 }
                                 editor.nodeChanged();
                             }
