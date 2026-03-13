@@ -1,115 +1,155 @@
-# 制度编写系统
+# 制度编写系统 (Zhidu)
 
-基于 Flask + TinyMCE 的企业制度文档编写与 AI 审核系统。
+企业制度文档结构化编写 + AI 合规审核 + 一键 Word 导出
 
-## 功能特性
+基于 **Flask** + **TinyMCE 6** 构建，采用 Apple HIG 设计规范。
 
-- **结构化编写**：预置 11 个标准章节（目的、适用范围、术语定义、管理要求等），每个章节附带填写提示
-- **富文本编辑**：基于 TinyMCE 6，支持格式化文本、表格、图片插入、首行缩进、垂直对齐等
-- **AI 智能审核**：逐章节 AI 审核，检查合规性、完整性、可操作性等维度（支持 OpenAI 兼容接口和 Anthropic 接口）
-- **DOCX 导出**：一键导出为 Word 文档，保留格式、对齐、表格列宽、图片等
-- **管理后台**：管理 AI 配置（API Key、模型、接口地址）、修改管理员密码
+---
 
-## 环境要求
+## 功能概览
 
-- **Python** 3.10+
-- **Node.js** 14+（仅用于安装 TinyMCE）
-- **操作系统**：Windows 10/11（其他系统可能需要微调启动脚本）
+### 结构化编写
+- 预置 11 个标准章节（目的、适用范围、术语定义、管理要求等）
+- 每个章节附带填写提示（悬停 `?` 图标查看）
+- 章节标题固定不可编辑，保证文档规范统一
 
-## 部署步骤
+### 富文本编辑
+- 基于 TinyMCE 6 的完整编辑器
+- 文本格式：加粗、斜体、下划线、删除线
+- 字体颜色、背景高亮色
+- 段落对齐：左 / 居中 / 右 / 两端对齐
+- **首行缩进**：一键 2 字符缩进（自定义按钮）
+- 有序列表、无序列表
+- 表格：插入/编辑/删除，支持**单元格垂直对齐**（顶部 / 居中 / 底部）
+- 图片：上传、插入、支持 PNG / JPG / GIF / BMP / WebP / SVG
+- Word 粘贴自动清理（去除 MSO 格式、命名空间标签等杂质）
+- 查找替换、全屏编辑、字数统计
 
-以下步骤基于全新 Windows 电脑，从零开始部署。
+### AI 智能审核
+- 逐章节独立审核，上下文感知
+- 审核维度：内容匹配度、完整性、规范性、可操作性、跨章节一致性、主题对齐
+- 审核结果以 Markdown 渲染展示
+- 支持两种 API 类型：
+  - **OpenAI 兼容**：DeepSeek、OpenAI、Moonshot、通义千问等
+  - **Anthropic**：Claude 系列模型
 
-### 1. 安装基础工具
+### DOCX 一键导出
+- 格式完整保留：字体、字号、对齐、缩进、颜色、高亮、删除线
+- 表格列宽自动计算（支持 % 和 px）
+- 图片嵌入（默认 5 英寸宽度，居中）
+- 支持自定义 Word 模板（封面、页眉页脚等）
 
-确保已安装以下软件：
+### 管理后台
+- AI 配置管理：增删改查、激活切换
+- 管理员密码修改
 
-- **Python 3.10+**：[下载地址](https://www.python.org/downloads/)
-  安装时务必勾选 **"Add Python to PATH"**
-- **Node.js 14+**：[下载地址](https://nodejs.org/)
-- **Git**：[下载地址](https://git-scm.com/downloads/win)
+---
 
-安装完成后，打开终端验证：
+## 快速开始
+
+### 环境要求
+
+| 依赖 | 版本 | 用途 |
+|------|------|------|
+| Python | 3.10+ | 后端运行 |
+| Node.js | 14+ | 安装 TinyMCE 前端资源 |
+| Git | 任意 | 代码管理 |
+
+> 下载地址：[Python](https://www.python.org/downloads/) · [Node.js](https://nodejs.org/) · [Git](https://git-scm.com/)
+
+### 安装步骤
 
 ```bash
-python --version
-node --version
-git --version
-```
-
-### 2. 克隆项目
-
-```bash
+# 1. 克隆项目
 git clone https://github.com/Paulwww47/zhidu.git
 cd zhidu
-```
 
-### 3. 创建 Python 虚拟环境并安装依赖
-
-```bash
+# 2. 创建 Python 虚拟环境并安装依赖
 python -m venv venv
+# Windows:
 venv\Scripts\activate
+# Linux/macOS:
+# source venv/bin/activate
+
 pip install -r requirements.txt
-```
 
-### 4. 安装 TinyMCE 前端依赖
-
-```bash
+# 3. 安装前端依赖（TinyMCE）
 npm install
-```
 
-这将在 `node_modules/tinymce/` 中安装 TinyMCE 编辑器资源，项目通过 Flask 路由直接提供服务。
-
-### 5. 启动应用
-
-**方式一：直接运行**
-
-```bash
-venv\Scripts\activate
+# 4. 启动应用
 python app.py
 ```
 
-**方式二：使用启动脚本（Git Bash）**
-
-```bash
-bash start.sh
-```
-
-启动后控制台会显示：
-
-```
- * Running on http://127.0.0.1:5000
-```
-
-### 6. 访问系统
+启动后访问：
 
 | 页面 | 地址 |
 |------|------|
 | 编辑页面 | http://127.0.0.1:5000 |
 | 管理后台 | http://127.0.0.1:5000/admin/login |
 
-### 7. 首次配置
+> 也可使用 Git Bash 运行 `bash start.sh` 一键启动。
 
-1. **登录管理后台**
-   默认管理员账号：`admin`，密码：`admin123`
-   *建议首次登录后立即修改密码*
+### 首次配置
 
-2. **配置 AI 接口**
-   在管理后台的"AI 配置管理"中，修改默认配置的 API Key 为你自己的密钥，或新增配置。
+1. **登录管理后台** — 默认账号 `admin`，密码 `admin123`（请立即修改）
+2. **配置 AI 接口** — 在"AI 配置管理"中填入你的 API Key
 
-   支持的接口类型：
-   - **OpenAI 兼容接口**：DeepSeek、OpenAI、Moonshot、通义千问等
-   - **Anthropic 接口**：Claude 系列模型
+配置示例：
 
-   配置示例：
+| 字段 | DeepSeek 示例 | Anthropic 示例 |
+|------|--------------|----------------|
+| 名称 | DeepSeek V3 | Claude Sonnet |
+| API Key | sk-xxxxxxxx | sk-ant-xxxxxxxx |
+| 模型 | deepseek-chat | claude-sonnet-4-6-20250514 |
+| 接口地址 | https://api.deepseek.com | https://api.anthropic.com |
+| 接口类型 | OpenAI 兼容 | Anthropic |
 
-   | 字段 | DeepSeek 示例 | Anthropic 示例 |
-   |------|--------------|----------------|
-   | 名称 | DeepSeek V3 | Claude Sonnet |
-   | API Key | sk-xxxxxxxx | sk-ant-xxxxxxxx |
-   | 模型 | deepseek-chat | claude-sonnet-4-20250514 |
-   | 接口地址 | https://api.deepseek.com | https://api.anthropic.com |
-   | 接口类型 | OpenAI 兼容 | Anthropic |
+---
+
+## 使用指南
+
+### 基本流程
+
+1. 在顶部导航栏输入制度名称
+2. 按章节依次填写内容（可参考 `?` 提示）
+3. 每个章节完成后点击**"完成"**按钮，AI 自动审核
+4. 根据 AI 建议调整内容（审核结果仅供参考）
+5. 全部完成后点击右上角**"导出 DOCX"**
+
+### 文档章节结构
+
+| 序号 | 章节 | 说明 |
+|------|------|------|
+| 一 | 目的 | 制度制定目的和意义 |
+| 二 | 适用范围 | 适用的组织、人员和场景 |
+| 三 | 规范性引用文件 | 引用的法规、标准、内部制度 |
+| 四 | 术语和定义 | 专业术语解释 |
+| 五 | 基本原则 | 核心原则和方针 |
+| 六 | 职责 | 各部门/岗位职责分工 |
+| 七 | 管理要求 | 具体管理规定和操作要求 |
+| 八 | 特殊处理机制 | 异常情况处理方式 |
+| 九 | 监管与问责 | 检查监督和违规处罚 |
+| 十 | 附则 | 解释权、生效日期等 |
+| 十一 | 附录 | 附表、流程图等补充材料 |
+
+### 自定义模板导出
+
+如需导出文档包含封面、页眉页脚等预设格式：
+
+1. 在 Word 中创建模板文档（含封面、页眉、页脚、样式等）
+2. 命名为 `template.docx`，放置在项目根目录（与 `app.py` 同级）
+3. 导出时系统会自动在模板内容之后追加生成的章节内容
+
+> 如果不放置模板文件，系统将创建空白文档并应用默认样式。
+
+建议模板结构：
+```
+第 1 页：封面（公司 logo、文档标题、日期等）
+第 2 页：目录（可选）
+第 3 页：空白页（生成内容从这里开始追加）
+```
+
+---
 
 ## 项目结构
 
@@ -118,72 +158,124 @@ zhidu/
 ├── app.py                  # Flask 主应用（路由、AI 审核、DOCX 导出）
 ├── requirements.txt        # Python 依赖
 ├── package.json            # Node.js 依赖（TinyMCE）
-├── start.sh                # 启动脚本（Git Bash）
+├── start.sh                # 一键启动脚本（Git Bash）
+├── .gitignore
 ├── static/
-│   ├── css/style.css       # Apple HIG 风格样式
+│   ├── css/
+│   │   └── style.css       # 全局样式（Apple HIG 风格）
 │   └── js/
-│       ├── main.js         # 前端主逻辑
+│       ├── main.js         # 前端主逻辑（编辑器、AI 审核、导出）
 │       └── marked.min.js   # Markdown 渲染库
 ├── templates/
-│   ├── editor.html         # 编辑页面
-│   ├── admin.html          # 管理后台
-│   └── admin_login.html    # 管理员登录
-├── uploads/                # 图片上传目录（自动创建）
-└── zhidu.db                # SQLite 数据库（自动创建）
+│   ├── editor.html         # 编辑器主页面
+│   ├── admin.html          # 管理后台页面
+│   └── admin_login.html    # 管理员登录页面
+├── uploads/                # 图片上传目录（运行时自动创建）
+└── zhidu.db                # SQLite 数据库（首次启动自动创建）
 ```
 
-## 使用说明
+---
 
-### 基本流程
+## 默认配置
 
-1. 在顶部输入制度名称
-2. 按章节依次填写内容（可参考每个章节旁的 `?` 提示）
-3. 每个章节填写完成后，点击"完成"按钮进行 AI 审核
-4. AI 审核结果仅供参考，请根据实际需求调整
-5. 全部章节完成后，点击右上角"导出 DOCX"生成 Word 文档
+### 编辑器
+| 配置项 | 默认值 |
+|--------|--------|
+| 编辑器高度 | 450px |
+| 语言 | 中文 (zh_CN) |
+| 首行缩进 | 2em |
 
-### 使用自定义模板（可选）
+### DOCX 导出格式
+| 配置项 | 默认值 |
+|--------|--------|
+| 正文字体 | 宋体 / Times New Roman |
+| 正文字号 | 12pt（小四号） |
+| 标题字体 | 黑体 12pt 加粗 |
+| 段前/段后间距 | 各 1 行 |
+| 标题段后间距 | 2 行 |
+| 行距 | 单倍 |
+| 图片宽度 | 5 英寸，居中 |
 
-如果你希望导出的文档包含封面、页眉、页脚等预设格式，可以使用模板功能：
+### AI 审核
+| 配置项 | 默认值 |
+|--------|--------|
+| Temperature | 0.3 |
+| Max Tokens | 1500 |
 
-1. **准备模板文档**
-   - 在 Word 中创建一个包含封面、页眉、页脚、样式等的文档
-   - 将文档命名为 `template.docx`
-   - 放置在项目根目录（与 `app.py` 同级）
+### 管理后台
+| 配置项 | 默认值 |
+|--------|--------|
+| 管理员用户名 | admin |
+| 管理员密码 | admin123 |
+| 默认 AI 配置 | DeepSeek V3 (deepseek-chat) |
 
-2. **导出行为**
-   - 如果存在 `template.docx`，系统会打开该模板，并将生成的内容追加到模板后面
-   - 如果不存在模板，系统会创建一个空白文档并应用默认样式
+---
 
-3. **注意事项**
-   - 模板文档的页眉、页脚、封面等会完整保留
-   - 生成的内容会追加在模板现有内容之后
-   - 建议模板文档最后留一个空白页，避免内容紧贴封面
+## API 路由
 
-**示例模板结构：**
-```
-第1页：封面（公司 logo、文档标题、日期等）
-第2页：目录（可选）
-第3页：空白页（生成的内容从这里开始追加）
-```
+| 路由 | 方法 | 说明 |
+|------|------|------|
+| `/` | GET | 编辑器主页 |
+| `/admin/login` | GET/POST | 管理员登录 |
+| `/admin/logout` | GET | 退出登录 |
+| `/admin` | GET | 管理面板 |
+| `/admin/config/add` | POST | 添加 AI 配置 |
+| `/admin/config/activate/<id>` | POST | 激活 AI 配置 |
+| `/admin/config/delete/<id>` | POST | 删除 AI 配置 |
+| `/admin/password` | POST | 修改管理员密码 |
+| `/api/ai-check` | POST | AI 智能审核 |
+| `/api/export` | POST | 导出 DOCX |
+| `/api/upload-image` | POST | 上传图片 |
+
+---
+
+## 技术栈
+
+| 层级 | 技术 |
+|------|------|
+| 后端框架 | Flask 3.1 |
+| Word 生成 | python-docx 1.2 |
+| HTML 解析 | BeautifulSoup4 + lxml |
+| AI 接口 | OpenAI SDK + Anthropic SDK |
+| 富文本编辑器 | TinyMCE 6 (GPL) |
+| UI 框架 | Bootstrap 5 |
+| Markdown 渲染 | marked.js |
+| 数据库 | SQLite |
+| 设计规范 | Apple Human Interface Guidelines |
+
+---
 
 ## 常见问题
 
 **Q: 启动报错 `ModuleNotFoundError`**
-A: 确认已激活虚拟环境（`venv\Scripts\activate`）并安装了依赖（`pip install -r requirements.txt`）。
-
-**Q: AI 审核报错**
-A: 检查管理后台中的 AI 配置，确认 API Key 有效且接口地址正确。
+A: 确认已激活虚拟环境并安装依赖：
+```bash
+venv\Scripts\activate      # Windows
+source venv/bin/activate   # Linux/macOS
+pip install -r requirements.txt
+```
 
 **Q: TinyMCE 编辑器不显示**
 A: 确认已运行 `npm install`，检查 `node_modules/tinymce/` 目录是否存在。
 
-**Q: 导出的 DOCX 中文字体异常**
-A: 系统使用宋体 / 黑体，确保电脑已安装这些字体（Windows 系统自带）。
+**Q: AI 审核报错**
+A: 在管理后台检查 AI 配置，确认 API Key 有效且接口地址正确。
 
-## 技术栈
+**Q: 导出 DOCX 中文字体异常**
+A: 系统使用宋体/黑体，确保系统已安装这些字体（Windows 自带，Linux 需手动安装）。
 
-- **后端**：Flask、python-docx、BeautifulSoup、OpenAI SDK、Anthropic SDK
-- **前端**：TinyMCE 6（GPL）、Bootstrap 5、marked.js
-- **数据库**：SQLite
-- **设计规范**：Apple Human Interface Guidelines
+**Q: Linux 下如何安装中文字体？**
+A:
+```bash
+# Ubuntu/Debian
+sudo apt install fonts-wqy-microhei fonts-wqy-zenhei
+
+# CentOS/RHEL
+sudo yum install wqy-microhei-fonts wqy-zenhei-fonts
+```
+
+---
+
+## 许可证
+
+本项目仅供学习和内部使用。TinyMCE 使用 GPL 许可证。

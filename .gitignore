@@ -28,6 +28,7 @@ desktop.ini
 # Temp/debug files
 *.docx
 debug_export.json
+test_*.html
 
 # Claude Code
 .claude/
