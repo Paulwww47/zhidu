@@ -100,10 +100,18 @@ body {
     backdrop-filter: saturate(180%) blur(20px);
     border-bottom: 0.5px solid var(--separator);
     box-shadow: none !important;
-    position: sticky;
+    position: fixed;
     top: 0;
-    z-index: 1030;
+    left: 0;
+    right: 0;
+    z-index: 1031;
     padding: 10px 0;
+    transition: transform 0.3s var(--ease), opacity 0.25s var(--ease);
+}
+.navbar.navbar-hidden {
+    transform: translateY(-100%);
+    opacity: 0;
+    pointer-events: none;
 }
 
 .navbar .navbar-brand {
@@ -290,7 +298,9 @@ body {
 .editor-wrapper {
     border: 0.5px solid var(--separator);
     border-radius: var(--radius-sm);       /* 8px */
-    overflow: hidden;
+    overflow: auto;
+    resize: vertical;
+    min-height: 332px;                     /* 300px content + 32px padding */
 }
 
 /* ===================================
@@ -707,4 +717,401 @@ body {
     letter-spacing: -0.01em;
     margin-top: 28px;
     margin-bottom: 16px;
+}
+
+/* ===================================
+   Draw.io Overlay
+   =================================== */
+.drawio-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: drawioFadeIn 0.2s ease;
+}
+@keyframes drawioFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+.drawio-frame {
+    width: 96vw;
+    height: 96vh;
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+}
+
+/* ===================================
+   Navbar Spacer (for fixed navbar)
+   =================================== */
+#navbarSpacer {
+    height: 56px;  /* JS will set exact value */
+}
+
+/* ===================================
+   Sticky Toolbar (replaces navbar on scroll/focus)
+   =================================== */
+.sticky-toolbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1030;
+    background: rgba(255, 255, 255, 0.96);
+    border-bottom: 0.5px solid var(--separator);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    overflow: visible;
+    visibility: hidden;
+    pointer-events: none;
+    transition: visibility 0s 0.2s;
+}
+.sticky-toolbar.visible {
+    visibility: visible;
+    pointer-events: auto;
+    transition: visibility 0s;
+}
+
+.sticky-toolbar-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 5px 16px;
+    border-bottom: 0.5px solid var(--separator);
+    min-height: 34px;
+    gap: 12px;
+}
+.sticky-toolbar-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--label-secondary);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.sticky-toolbar-center {
+    flex: 1;
+    min-width: 0;
+}
+.doc-name-toolbar {
+    width: 100%;
+    max-width: 320px;
+    font-size: 14px !important;
+    padding: 2px 0 !important;
+}
+.sticky-toolbar-top .btn-outline-light {
+    color: var(--sys-blue) !important;
+    border: 1.5px solid var(--sys-blue) !important;
+    border-radius: 980px;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 14px;
+    min-height: 28px;
+    background: transparent !important;
+    transition: all 0.25s var(--ease);
+}
+.sticky-toolbar-top .btn-outline-light:hover {
+    background: var(--sys-blue) !important;
+    color: #fff !important;
+}
+
+/* TinyMCE toolbar container inside sticky toolbar */
+#tinymce-toolbar-container {
+    background: var(--bg-primary);
+    overflow: visible;
+}
+#tinymce-toolbar-container .tox-tinymce-inline {
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+}
+
+/* ===================================
+   Inline Editor Content Area
+   =================================== */
+.editor-inline {
+    min-height: 300px;
+    height: 100%;
+    padding: 16px;
+    outline: none;
+}
+.editor-inline:empty::before {
+    content: '请在此输入内容...';
+    color: var(--label-tertiary);
+    pointer-events: none;
+}
+/* Scope editor content font (inline mode renders in page DOM) */
+.mce-content-body.editor-inline {
+    font-family: SimSun, serif;
+    font-size: 12pt;
+    line-height: 1.6;
+}
+.mce-content-body.editor-inline img {
+    max-width: 100%;
+    height: auto;
+}
+/* Table borders visible in editor */
+.mce-content-body.editor-inline table {
+    border-collapse: collapse;
+    width: 100%;
+}
+.mce-content-body.editor-inline td,
+.mce-content-body.editor-inline th {
+    border: 1px solid #ccc;
+    padding: 5px 10px;
+    min-width: 40px;
+}
+
+/* ===================================
+   Auto-save Restore Banner
+   =================================== */
+.restore-banner {
+    position: fixed;
+    bottom: -80px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2000;
+    background: var(--bg-primary);
+    border: 0.5px solid var(--separator);
+    border-radius: 14px;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+    transition: bottom 0.35s var(--ease);
+    white-space: nowrap;
+}
+.restore-banner.visible {
+    bottom: 28px;
+}
+.restore-text {
+    font-size: 14px;
+    color: var(--label-primary);
+    font-weight: 400;
+}
+.restore-btn {
+    border: none;
+    border-radius: 980px;
+    padding: 7px 18px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: var(--font-system);
+    cursor: pointer;
+    transition: all 0.2s var(--ease);
+}
+.restore-btn:active {
+    transform: scale(0.96);
+}
+.restore-yes {
+    background: var(--sys-blue);
+    color: #fff;
+}
+.restore-yes:hover {
+    background: var(--sys-blue-hover);
+}
+.restore-no {
+    background: var(--fill-secondary);
+    color: var(--label-primary);
+}
+.restore-no:hover {
+    background: var(--fill-tertiary);
+}
+
+/* ===================================
+   Document Sidebar
+   =================================== */
+.doc-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 260px;
+    z-index: 1032;
+    background: var(--bg-primary);
+    border-right: 0.5px solid var(--separator);
+    display: flex;
+    flex-direction: column;
+    transform: translateX(-260px);
+    transition: transform 0.3s var(--ease);
+}
+body.sidebar-open .doc-sidebar {
+    transform: translateX(0);
+}
+.sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1031;
+    background: rgba(0, 0, 0, 0.25);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s var(--ease);
+}
+body.sidebar-open .sidebar-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+}
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px 10px;
+    flex-shrink: 0;
+}
+.sidebar-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--label-primary);
+    letter-spacing: -0.01em;
+}
+.sidebar-new-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--sys-blue);
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s var(--ease);
+    flex-shrink: 0;
+}
+.sidebar-new-btn:hover {
+    background: var(--sys-blue-hover);
+}
+.sidebar-warning {
+    font-size: 11px;
+    color: #b25000;
+    padding: 8px 14px;
+    background: rgba(255, 149, 0, 0.08);
+    margin: 0 10px 8px;
+    border-radius: 6px;
+    line-height: 1.5;
+    flex-shrink: 0;
+}
+.sidebar-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 6px 12px;
+}
+.sidebar-doc-item {
+    padding: 10px 12px;
+    cursor: pointer;
+    border-radius: 8px;
+    margin-bottom: 2px;
+    transition: background 0.15s var(--ease);
+    position: relative;
+}
+.sidebar-doc-item:hover {
+    background: var(--fill-secondary);
+}
+.sidebar-doc-item.active {
+    background: rgba(0, 122, 255, 0.1);
+}
+.sidebar-doc-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--label-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-right: 24px;
+}
+.sidebar-doc-time {
+    font-size: 11px;
+    color: var(--label-tertiary);
+    margin-top: 3px;
+}
+.sidebar-doc-delete {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 22px;
+    height: 22px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--label-tertiary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+    font-size: 14px;
+    line-height: 1;
+}
+.sidebar-doc-item:hover .sidebar-doc-delete {
+    opacity: 1;
+}
+.sidebar-doc-delete:hover {
+    background: rgba(255, 59, 48, 0.12);
+    color: var(--sys-red);
+}
+
+/* Sidebar toggle button in navbar */
+.sidebar-toggle-btn {
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--label-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 10px;
+    transition: background 0.15s var(--ease), color 0.15s;
+    flex-shrink: 0;
+}
+.sidebar-toggle-btn:hover {
+    background: var(--fill-secondary);
+    color: var(--label-primary);
+}
+
+/* Layout shift transitions */
+.navbar {
+    transition: transform 0.3s var(--ease), opacity 0.25s var(--ease), left 0.3s var(--ease);
+}
+.sticky-toolbar {
+    transition: visibility 0s 0.2s, left 0.3s var(--ease);
+}
+.sticky-toolbar.visible {
+    transition: visibility 0s, left 0.3s var(--ease);
+}
+#editorContainer {
+    transition: padding-left 0.3s var(--ease);
+}
+
+/* Desktop: sidebar pushes content */
+@media (min-width: 769px) {
+    body.sidebar-open .navbar,
+    body.sidebar-open .sticky-toolbar {
+        left: 260px;
+    }
+    body.sidebar-open #editorContainer {
+        padding-left: 260px;
+    }
+    /* Hide backdrop on desktop — content pushes instead */
+    body.sidebar-open .sidebar-backdrop {
+        opacity: 0;
+        pointer-events: none;
+    }
+}
+
+/* Mobile: sidebar overlays */
+@media (max-width: 768px) {
+    .doc-sidebar {
+        width: 280px;
+        transform: translateX(-280px);
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+    }
 }

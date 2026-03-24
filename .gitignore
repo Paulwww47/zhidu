@@ -30,5 +30,10 @@ desktop.ini
 debug_export.json
 test_*.html
 
+# PyInstaller
+build/
+dist/
+zhidu.spec
+
 # Claude Code
 .claude/

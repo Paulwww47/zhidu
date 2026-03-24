@@ -1,10 +1,12 @@
 import os
 import io
+import sys
 import json
 import sqlite3
 import hashlib
 import secrets
 import uuid
+import shutil
 from functools import wraps
 from flask import (
     Flask, render_template, request, jsonify, send_file,
@@ -20,16 +22,42 @@ from docx.enum.table import WD_ALIGN_VERTICAL
 from bs4 import BeautifulSoup
 import re
 
+
+# ---------- Path helpers for PyInstaller ----------
+def _bundle_dir():
+    """Read-only bundled resources (templates, static, tinymce)."""
+    if getattr(sys, 'frozen', False):
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def _app_dir():
+    """Writable runtime directory (db, uploads, template.docx) — next to exe."""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+# On first run from exe, copy writable files to app dir if not present
+if getattr(sys, 'frozen', False):
+    for _fname in ('template.docx', 'zhidu.db'):
+        _bundled = os.path.join(_bundle_dir(), _fname)
+        _runtime = os.path.join(_app_dir(), _fname)
+        if os.path.exists(_bundled) and not os.path.exists(_runtime):
+            shutil.copy2(_bundled, _runtime)
+
+
 app = Flask(__name__,
-            static_folder='static',
+            template_folder=os.path.join(_bundle_dir(), 'templates'),
+            static_folder=os.path.join(_bundle_dir(), 'static'),
             static_url_path='/static')
 app.secret_key = secrets.token_hex(32)
 
 # Serve TinyMCE from node_modules
-TINYMCE_PATH = os.path.join(os.path.dirname(__file__), 'node_modules', 'tinymce')
+TINYMCE_PATH = os.path.join(_bundle_dir(), 'node_modules', 'tinymce')
 
 # Upload folder for images
-UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
+UPLOAD_FOLDER = os.path.join(_app_dir(), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @app.route('/tinymce/<path:filename>')
@@ -54,7 +82,7 @@ def upload_image():
     f.save(os.path.join(UPLOAD_FOLDER, filename))
     return jsonify({'location': '/uploads/' + filename})
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'zhidu.db')
+DB_PATH = os.path.join(_app_dir(), 'zhidu.db')
 
 # ---------- Database ----------
 def get_db():
@@ -79,10 +107,17 @@ def init_db():
         api_type TEXT NOT NULL DEFAULT 'openai',
         is_active INTEGER DEFAULT 0
     )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS site_config (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    )''')
     # Migrate: add api_type column if missing (for existing DBs)
     cols = [row[1] for row in c.execute('PRAGMA table_info(ai_config)').fetchall()]
     if 'api_type' not in cols:
         c.execute("ALTER TABLE ai_config ADD COLUMN api_type TEXT NOT NULL DEFAULT 'openai'")
+    # Default site config
+    c.execute("INSERT OR IGNORE INTO site_config (key, value) VALUES (?, ?)",
+              ('drawio_url', 'https://embed.diagrams.net'))
     # Default admin: admin / admin123 (should change after first login)
     default_pw = hashlib.sha256('admin123'.encode()).hexdigest()
     c.execute('SELECT COUNT(*) FROM admin_users')
@@ -105,6 +140,20 @@ def get_active_ai_config():
     conn.close()
     return dict(row) if row else None
 
+
+def get_site_config(key, default=''):
+    conn = get_db()
+    row = conn.execute('SELECT value FROM site_config WHERE key = ?', (key,)).fetchone()
+    conn.close()
+    return row['value'] if row else default
+
+
+def set_site_config(key, value):
+    conn = get_db()
+    conn.execute('INSERT OR REPLACE INTO site_config (key, value) VALUES (?, ?)', (key, value))
+    conn.commit()
+    conn.close()
+
 # ---------- Auth ----------
 def admin_required(f):
     @wraps(f)
@@ -118,6 +167,14 @@ def admin_required(f):
 @app.route('/')
 def index():
     return render_template('editor.html')
+
+
+@app.route('/api/site-config')
+def api_site_config():
+    """Return site configuration for frontend (drawio_url etc.)."""
+    return jsonify({
+        'drawio_url': get_site_config('drawio_url', 'https://embed.diagrams.net')
+    })
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
@@ -150,7 +207,8 @@ def admin_panel():
     conn = get_db()
     configs = conn.execute('SELECT * FROM ai_config ORDER BY id').fetchall()
     conn.close()
-    return render_template('admin.html', configs=[dict(c) for c in configs])
+    drawio_url = get_site_config('drawio_url', 'https://embed.diagrams.net')
+    return render_template('admin.html', configs=[dict(c) for c in configs], drawio_url=drawio_url)
 
 @app.route('/admin/config/add', methods=['POST'])
 @admin_required
@@ -182,6 +240,15 @@ def delete_config(config_id):
     conn.execute('DELETE FROM ai_config WHERE id = ?', (config_id,))
     conn.commit()
     conn.close()
+    return redirect(url_for('admin_panel'))
+
+
+@app.route('/admin/site-config', methods=['POST'])
+@admin_required
+def save_site_config():
+    drawio_url = request.form.get('drawio_url', '').strip()
+    if drawio_url:
+        set_site_config('drawio_url', drawio_url)
     return redirect(url_for('admin_panel'))
 
 @app.route('/admin/password', methods=['POST'])
@@ -450,30 +517,69 @@ def export_docx():
     from docx.enum.text import WD_LINE_SPACING
 
     # Check if template exists
-    template_path = os.path.join(os.path.dirname(__file__), 'template.docx')
+    template_path = os.path.join(_app_dir(), 'template.docx')
     if os.path.exists(template_path):
         doc = Document(template_path)
     else:
         doc = Document()
 
-        # Set default font (only for new documents)
-        style = doc.styles['Normal']
-        font = style.font
-        font.name = '宋体'
-        font.size = Pt(12)  # 小四号 = 12pt
-        style.element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
+    # --- Save template tables' column widths before any style changes ---
+    _saved_table_widths = []
+    for tbl in doc.tables:
+        col_widths = []
+        for col in tbl.columns:
+            col_widths.append(col.width)
+        _saved_table_widths.append((tbl, col_widths))
+    # Also save header/footer table widths
+    for section in doc.sections:
+        for hdr_ftr in (section.header, section.footer,
+                        section.even_page_header, section.even_page_footer,
+                        section.first_page_header, section.first_page_footer):
+            try:
+                if hdr_ftr and not hdr_ftr.is_linked_to_previous:
+                    for tbl in hdr_ftr._element.findall(qn('w:tbl')):
+                        from docx.table import Table
+                        t = Table(tbl, doc)
+                        col_widths = [c.width for c in t.columns]
+                        _saved_table_widths.append((t, col_widths))
+            except Exception:
+                pass
 
-        # Normal style: 段前1行 段后1行 单倍行距
-        style.paragraph_format.space_before = Pt(12)   # 1行 = 1x字号(12pt)
-        style.paragraph_format.space_after = Pt(12)
-        style.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+    # Create a custom style for body content (avoid touching Normal which
+    # would cascade to header/footer and template tables)
+    from docx.enum.style import WD_STYLE_TYPE
+    try:
+        body_style = doc.styles['ZhiduBody']
+    except KeyError:
+        body_style = doc.styles.add_style('ZhiduBody', WD_STYLE_TYPE.PARAGRAPH)
+        body_style.base_style = doc.styles['Normal']
+    body_font = body_style.font
+    body_font.name = '宋体'
+    body_font.size = Pt(12)  # 小四号 = 12pt
+    body_style.element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
+
+    # 正文：段前1行 段后1行 1.5倍行距
+    body_style.paragraph_format.line_spacing_rule = WD_LINE_SPACING.ONE_POINT_FIVE
+    _set_spacing_in_lines(body_style.element, before_lines=100, after_lines=100)
+
+    # Document title: 制度名称，黑体24号加粗，单倍行距，居中
+    doc_name = data.get('doc_name', '').strip() or 'XXX管理办法'
+    title_para = doc.add_paragraph(style='ZhiduBody')
+    title_run = title_para.add_run(doc_name)
+    title_run.font.name = '黑体'
+    title_run.font.size = Pt(24)
+    title_run.font.bold = True
+    title_run.font.color.rgb = RGBColor(0, 0, 0)
+    title_run.element.rPr.rFonts.set(qn('w:eastAsia'), '黑体')
+    title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
 
     for sec in sections:
         title = sec.get('title', '')
         content_html = sec.get('content', '')
 
         # Add heading as a normal paragraph (avoids the black dot from Heading styles)
-        heading_para = doc.add_paragraph()
+        heading_para = doc.add_paragraph(style='ZhiduBody')
         heading_run = heading_para.add_run(title)
         heading_run.font.name = '黑体'
         heading_run.font.size = Pt(12)
@@ -481,15 +587,30 @@ def export_docx():
         heading_run.font.color.rgb = RGBColor(0, 0, 0)
         heading_run.element.rPr.rFonts.set(qn('w:eastAsia'), '黑体')
         # 一级标题：段前1行 段后2行 单倍行距
-        heading_para.paragraph_format.space_before = Pt(12)
-        heading_para.paragraph_format.space_after = Pt(24)   # 2行 = 2x12pt
         heading_para.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+        _set_spacing_in_lines(heading_para._element, before_lines=100, after_lines=200)
 
         # Parse HTML content and add as paragraphs
         if content_html.strip():
             content_html = _clean_word_html(content_html)
+            # Log HTML with images for debugging size/alignment issues
+            if '<img' in content_html:
+                app.logger.info(f'Export HTML with images in [{title}]: {content_html[:2000]}')
             soup = BeautifulSoup(content_html, 'html.parser')
             _parse_html_to_docx(doc, soup)
+
+    # --- Restore saved template table widths ---
+    for tbl, col_widths in _saved_table_widths:
+        try:
+            tbl.allow_autofit = False
+            for i, w in enumerate(col_widths):
+                if w and i < len(tbl.columns):
+                    tbl.columns[i].width = w
+                    for row in tbl.rows:
+                        if i < len(row.cells):
+                            row.cells[i].width = w
+        except Exception:
+            pass
 
     buffer = io.BytesIO()
     doc.save(buffer)
@@ -537,44 +658,35 @@ def _clean_word_html(html):
     return html
 
 
+def _is_block_element(tag_name):
+    """Check if an HTML tag is a block-level element."""
+    return tag_name in (
+        'p', 'div', 'table', 'ul', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'blockquote', 'pre', 'figure', 'section', 'article', 'main', 'header',
+        'footer', 'nav', 'aside', 'hr', 'img',
+    )
+
+
 def _parse_html_to_docx(doc, soup):
     """Parse HTML content and add to docx document."""
     from docx.shared import RGBColor, Inches
 
+    _style = 'ZhiduBody'
     for element in soup.children:
-        if element.name == 'img' or (element.name is None and False):
+        if element.name == 'img':
             _add_image_to_docx(doc, element)
-        elif element.name in ('p', 'div'):
-            # Check if paragraph contains images
-            imgs = element.find_all('img') if element.name else []
-            if imgs:
-                for child in element.children:
-                    if hasattr(child, 'name') and child.name == 'img':
-                        _add_image_to_docx(doc, child)
-                    elif isinstance(child, str) and child.strip():
-                        para = doc.add_paragraph()
-                        _set_run_font(para.add_run(child.strip()))
-                        _apply_paragraph_format(para, element)
-                    elif hasattr(child, 'name') and child.name:
-                        text = child.get_text()
-                        if text.strip():
-                            para = doc.add_paragraph()
-                            _add_formatted_runs(para, child, text)
-                            _apply_paragraph_format(para, element)
-            else:
-                text = element.get_text() if element.name else str(element).strip()
-                if text.strip():
-                    para = doc.add_paragraph()
-                    _add_formatted_runs(para, element if element.name else None, text)
-                    _apply_paragraph_format(para, element)
+        elif element.name == 'table':
+            _add_table_to_docx(doc, element)
+        elif element.name == 'p':
+            _add_paragraph_to_docx(doc, element)
         elif element.name is None:
             text = str(element).strip()
             if text:
-                para = doc.add_paragraph()
+                para = doc.add_paragraph(style=_style)
                 _set_run_font(para.add_run(text))
         elif element.name in ('ul', 'ol'):
             for li in element.find_all('li', recursive=False):
-                para = doc.add_paragraph()
+                para = doc.add_paragraph(style=_style)
                 _add_formatted_runs(para, li, li.get_text())
                 try:
                     if element.name == 'ul':
@@ -591,18 +703,80 @@ def _parse_html_to_docx(doc, soup):
                     else:
                         para.paragraph_format.left_indent = Pt(24)
                         para.paragraph_format.first_line_indent = Pt(-12)
-        elif element.name == 'table':
-            _add_table_to_docx(doc, element)
         elif element.name in ('h1','h2','h3','h4','h5','h6'):
-            para = doc.add_paragraph()
+            para = doc.add_paragraph(style=_style)
             run = para.add_run(element.get_text())
             run.bold = True
             run.font.name = '宋体'
             run.font.size = Pt(12)
             run.element.rPr.rFonts.set(qn('w:eastAsia'), '宋体')
+        elif element.name:
+            # Container elements (div, figure, section, etc.):
+            # check if they contain block-level children and recurse
+            has_block = any(
+                hasattr(c, 'name') and c.name and _is_block_element(c.name)
+                for c in element.children
+            )
+            if has_block:
+                _parse_html_to_docx(doc, element)
+            else:
+                # Treat as an inline/text container
+                text = element.get_text()
+                if text.strip():
+                    para = doc.add_paragraph(style=_style)
+                    _add_formatted_runs(para, element, text)
+                    _apply_paragraph_format(para, element)
         elif isinstance(element, str) and element.strip():
-            para = doc.add_paragraph()
+            para = doc.add_paragraph(style=_style)
             _set_run_font(para.add_run(element.strip()))
+
+
+def _add_paragraph_to_docx(doc, element):
+    """Add a <p> element to docx, handling images and formatting."""
+    _style = 'ZhiduBody'
+    imgs = element.find_all('img')
+    if imgs:
+        for child in element.children:
+            if hasattr(child, 'name') and child.name == 'img':
+                _add_image_to_docx(doc, child)
+            elif isinstance(child, str) and child.strip():
+                para = doc.add_paragraph(style=_style)
+                _set_run_font(para.add_run(child.strip()))
+                _apply_paragraph_format(para, element)
+            elif hasattr(child, 'name') and child.name:
+                text = child.get_text()
+                if text.strip():
+                    para = doc.add_paragraph(style=_style)
+                    _add_formatted_runs(para, child, text)
+                    _apply_paragraph_format(para, element)
+    else:
+        text = element.get_text()
+        if text.strip():
+            para = doc.add_paragraph(style=_style)
+            _add_formatted_runs(para, element, text)
+            _apply_paragraph_format(para, element)
+
+
+def _set_spacing_in_lines(element, before_lines=None, after_lines=None):
+    """Set paragraph before/after spacing in 'lines' unit via XML.
+    element: paragraph._element (CT_P) or style.element (CT_Style)
+    Values: 100 = 1 line, 200 = 2 lines, etc.
+    python-docx has no high-level API for w:beforeLines/w:afterLines.
+    """
+    from docx.oxml import OxmlElement
+    pPr = element.get_or_add_pPr()
+    spacing = pPr.find(qn('w:spacing'))
+    if spacing is None:
+        spacing = OxmlElement('w:spacing')
+        pPr.append(spacing)
+    if before_lines is not None:
+        spacing.set(qn('w:beforeLines'), str(before_lines))
+        if qn('w:before') in spacing.attrib:
+            del spacing.attrib[qn('w:before')]
+    if after_lines is not None:
+        spacing.set(qn('w:afterLines'), str(after_lines))
+        if qn('w:after') in spacing.attrib:
+            del spacing.attrib[qn('w:after')]
 
 
 def _apply_paragraph_format(para, element):
@@ -628,46 +802,158 @@ def _apply_paragraph_format(para, element):
             para.paragraph_format.first_line_indent = Pt(int(em_val * 12))
 
 
-def _add_image_to_docx(doc, img_tag):
-    """Add an image from an <img> tag to the docx document."""
-    from docx.shared import Inches
-    import base64
-    import re
+def _parse_img_size(img_tag):
+    """Extract width and height in EMU from <img> style or attributes.
+    Returns (width_emu, height_emu); either may be None if not specified.
+    1 CSS pixel = 9525 EMU.
+    """
+    from docx.shared import Emu
+    width_px = None
+    height_px = None
 
+    # 1) Try style attribute: style="width: 300px; height: 200px"
+    style = img_tag.get('style', '')
+    if style:
+        w_match = re.search(r'(?<![a-z-])width:\s*([\d.]+)\s*px', style)
+        h_match = re.search(r'(?<![a-z-])height:\s*([\d.]+)\s*px', style)
+        if w_match:
+            width_px = float(w_match.group(1))
+        if h_match:
+            height_px = float(h_match.group(1))
+
+    # 2) Fall back to HTML attributes: width="300" height="200"
+    if width_px is None and img_tag.get('width'):
+        try:
+            val = str(img_tag['width']).strip().replace('px', '')
+            if val and not val.endswith('%'):
+                width_px = float(val)
+        except (ValueError, AttributeError):
+            pass
+    if height_px is None and img_tag.get('height'):
+        try:
+            val = str(img_tag['height']).strip().replace('px', '')
+            if val and not val.endswith('%'):
+                height_px = float(val)
+        except (ValueError, AttributeError):
+            pass
+
+    app.logger.debug(f'_parse_img_size: width_px={width_px}, height_px={height_px}, '
+                     f'style={style!r}, w_attr={img_tag.get("width")}, h_attr={img_tag.get("height")}')
+
+    w_emu = Emu(int(width_px * 9525)) if width_px is not None else None
+    h_emu = Emu(int(height_px * 9525)) if height_px is not None else None
+    return w_emu, h_emu
+
+
+def _get_img_alignment(img_tag):
+    """Detect image alignment from <img> style and parent element.
+    TinyMCE sets alignment on the <img> itself:
+      - Center: display: block; margin-left: auto; margin-right: auto
+      - Right:  float: right
+      - Left:   float: left  (or default — no explicit style)
+    Also checks parent <p> text-align as fallback.
+    Returns WD_ALIGN_PARAGRAPH value or None (Word default = left).
+    """
+    style = (img_tag.get('style') or '').lower()
+
+    # Check image's own style first (TinyMCE default image alignment)
+    float_m = re.search(r'float\s*:\s*(left|right)', style)
+    if float_m:
+        if float_m.group(1) == 'right':
+            return WD_ALIGN_PARAGRAPH.RIGHT
+        return WD_ALIGN_PARAGRAPH.LEFT
+    if re.search(r'margin-left\s*:\s*auto', style) and re.search(r'margin-right\s*:\s*auto', style):
+        return WD_ALIGN_PARAGRAPH.CENTER
+
+    # Check parent and ancestor <p>/<div> for text-align
+    node = img_tag.parent
+    while node and hasattr(node, 'name'):
+        if node.name in ('p', 'div', 'td', 'th'):
+            ps = (node.get('style') or '').lower()
+            m = re.search(r'text-align:\s*(left|center|right|justify)', ps)
+            if m:
+                align_map = {
+                    'left': WD_ALIGN_PARAGRAPH.LEFT,
+                    'center': WD_ALIGN_PARAGRAPH.CENTER,
+                    'right': WD_ALIGN_PARAGRAPH.RIGHT,
+                    'justify': WD_ALIGN_PARAGRAPH.JUSTIFY,
+                }
+                return align_map.get(m.group(1))
+            break
+        node = node.parent
+
+    return None
+
+
+def _resolve_img_stream(img_tag):
+    """Resolve <img> src to a file path or BytesIO stream. Returns None on failure."""
+    import base64
     src = img_tag.get('src', '')
     if not src:
-        return
+        return None
 
-    img_stream = None
-
-    # Case 1: local relative path /uploads/xxx
     if src.startswith('/uploads/'):
         img_path = os.path.join(UPLOAD_FOLDER, src.replace('/uploads/', '', 1))
         if os.path.exists(img_path):
-            img_stream = img_path
-
-    # Case 2: full URL pointing to our own server http://...host.../uploads/xxx
+            return img_path
     elif '/uploads/' in src and not src.startswith('blob:'):
         filename = src.split('/uploads/')[-1].split('?')[0]
         img_path = os.path.join(UPLOAD_FOLDER, filename)
         if os.path.exists(img_path):
-            img_stream = img_path
-
-    # Case 3: data URI  data:image/png;base64,...
+            return img_path
     elif src.startswith('data:image/'):
         match = re.match(r'data:image/[^;]+;base64,(.*)', src, re.DOTALL)
         if match:
-            img_stream = io.BytesIO(base64.b64decode(match.group(1)))
+            return io.BytesIO(base64.b64decode(match.group(1)))
+    return None
 
-    if img_stream is not None:
-        try:
-            doc.add_picture(img_stream, width=Inches(5))
-            # Center the picture paragraph
-            doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
-        except Exception as e:
-            app.logger.error(f'Failed to add image to docx: {e}')
-    else:
+
+def _apply_img_size(pic, target_w, target_h, max_width):
+    """Apply parsed dimensions to a picture, enforcing max_width."""
+    if target_w is not None:
+        if target_h is not None:
+            pic.width = int(target_w)
+            pic.height = int(target_h)
+        else:
+            ratio = target_w / pic.width if pic.width else 1
+            pic.height = int(pic.height * ratio)
+            pic.width = int(target_w)
+    elif target_h is not None:
+        ratio = target_h / pic.height if pic.height else 1
+        pic.width = int(pic.width * ratio)
+        pic.height = int(target_h)
+    # Enforce max width
+    if pic.width > max_width:
+        ratio = max_width / pic.width
+        pic.width = int(max_width)
+        pic.height = int(pic.height * ratio)
+
+
+def _add_image_to_docx(doc, img_tag):
+    """Add an image from an <img> tag to the docx document."""
+    img_stream = _resolve_img_stream(img_tag)
+    if img_stream is None:
+        src = img_tag.get('src', '')
         app.logger.warning(f'Image not resolved, src={src[:100]}')
+        return
+
+    try:
+        target_w, target_h = _parse_img_size(img_tag)
+        pic = doc.add_picture(img_stream)
+        section = doc.sections[-1]
+        max_width = section.page_width - section.left_margin - section.right_margin
+        _apply_img_size(pic, target_w, target_h, max_width)
+
+        para = doc.paragraphs[-1]
+        try:
+            para.style = doc.styles['ZhiduBody']
+        except KeyError:
+            pass
+        align = _get_img_alignment(img_tag)
+        if align is not None:
+            para.alignment = align
+    except Exception as e:
+        app.logger.error(f'Failed to add image to docx: {e}')
 
 def _add_formatted_runs(para, element, fallback_text):
     """Add runs with formatting from HTML element."""
@@ -768,7 +1054,7 @@ def _parse_width(style_str, width_attr):
 
 
 def _add_table_to_docx(doc, table_elem):
-    """Convert HTML table to docx table, preserving column widths."""
+    """Convert HTML table to docx table, preserving column widths and merged cells."""
     from docx.shared import Inches, Emu
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
@@ -776,9 +1062,7 @@ def _add_table_to_docx(doc, table_elem):
     import re
 
     def set_cell_border(cell, **kwargs):
-        """Set cell border. kwargs: top, bottom, left, right, insideH, insideV
-        Example: set_cell_border(cell, top={"sz": 12, "val": "single", "color": "000000"})
-        """
+        """Set cell border. kwargs: top, bottom, left, right, insideH, insideV"""
         tc = cell._tc
         tcPr = tc.get_or_add_tcPr()
         tcBorders = OxmlElement('w:tcBorders')
@@ -791,87 +1075,108 @@ def _add_table_to_docx(doc, table_elem):
                 tcBorders.append(edge_el)
         tcPr.append(tcBorders)
 
-    rows = table_elem.find_all('tr')
-    if not rows:
+    rows_html = table_elem.find_all('tr')
+    if not rows_html:
         return
-    max_cols = max(len(row.find_all(['td', 'th'])) for row in rows)
-    if max_cols == 0:
+    num_rows = len(rows_html)
+
+    # --- Phase 1: Build grid, accounting for colspan & rowspan ---
+    cell_map = {}   # (row, col) -> {'cell': element, 'colspan': int, 'rowspan': int}
+    occupied = set()  # positions taken by a span (not the origin cell)
+
+    for i, row_elem in enumerate(rows_html):
+        html_cells = row_elem.find_all(['td', 'th'])
+        col = 0
+        for html_cell in html_cells:
+            while (i, col) in occupied or (i, col) in cell_map:
+                col += 1
+            colspan = int(html_cell.get('colspan', 1) or 1)
+            rowspan = int(html_cell.get('rowspan', 1) or 1)
+            cell_map[(i, col)] = {
+                'cell': html_cell, 'colspan': colspan, 'rowspan': rowspan,
+            }
+            for dr in range(rowspan):
+                for dc in range(colspan):
+                    if dr > 0 or dc > 0:
+                        occupied.add((i + dr, col + dc))
+            col += colspan
+
+    all_positions = set(cell_map.keys()) | occupied
+    if not all_positions:
         return
-    table = doc.add_table(rows=len(rows), cols=max_cols)
-    # Apply 'Table Grid' style if available (may not exist in custom templates)
+    actual_cols = max(c + 1 for _, c in all_positions)
+
+    # --- Phase 2: Create docx table ---
+    table = doc.add_table(rows=num_rows, cols=actual_cols)
+
     style_applied = False
     try:
         table.style = 'Table Grid'
         style_applied = True
     except KeyError:
-        pass  # Template doesn't have this style, will add borders manually
+        pass
 
-    # If no style applied, manually add borders to all cells
+    # --- Phase 3: Merge cells ---
+    for (r, c), info in cell_map.items():
+        cs, rs = info['colspan'], info['rowspan']
+        if cs > 1 or rs > 1:
+            table.cell(r, c).merge(table.cell(r + rs - 1, c + cs - 1))
+
+    # Manual borders after merge so they apply to final cell shapes
     if not style_applied:
         border_config = {"sz": 4, "val": "single", "color": "000000"}
         for row in table.rows:
             for cell in row.cells:
-                set_cell_border(
-                    cell,
-                    top=border_config,
-                    bottom=border_config,
-                    left=border_config,
-                    right=border_config
-                )
+                set_cell_border(cell, top=border_config, bottom=border_config,
+                                left=border_config, right=border_config)
 
-    # --- Parse table alignment from HTML ---
+    # --- Phase 4: Table alignment ---
     from docx.enum.table import WD_TABLE_ALIGNMENT
-    table_style = table_elem.get('style', '')
+    table_style_str = table_elem.get('style', '')
     table_align_attr = table_elem.get('align', '')
 
-    # Check for margin: auto (center), margin-left: auto (right), or align attribute
-    if 'margin-left: auto' in table_style and 'margin-right: auto' in table_style:
+    if 'margin-left: auto' in table_style_str and 'margin-right: auto' in table_style_str:
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    elif 'margin-left: auto' in table_style:
+    elif 'margin-left: auto' in table_style_str:
         table.alignment = WD_TABLE_ALIGNMENT.RIGHT
     elif table_align_attr:
         align_map = {'left': WD_TABLE_ALIGNMENT.LEFT, 'center': WD_TABLE_ALIGNMENT.CENTER, 'right': WD_TABLE_ALIGNMENT.RIGHT}
         table.alignment = align_map.get(table_align_attr.lower(), WD_TABLE_ALIGNMENT.LEFT)
-    # TinyMCE may also use float or text-align on wrapper
-    elif 'float: right' in table_style or 'float:right' in table_style:
+    elif 'float: right' in table_style_str or 'float:right' in table_style_str:
         table.alignment = WD_TABLE_ALIGNMENT.RIGHT
 
-    # --- Resolve column widths ---
-    total_width_inches = 6.0  # A4 usable width with 1-inch margins
+    # --- Phase 5: Resolve column widths ---
+    total_width_inches = 6.0
     col_widths = None
 
-    # Method 1: <colgroup><col style="width: ...">
     colgroup = table_elem.find('colgroup')
     if colgroup:
-        cols = colgroup.find_all('col')
-        if cols:
-            col_widths = []
-            for col_tag in cols:
-                w = _parse_width(col_tag.get('style', ''), col_tag.get('width', ''))
-                col_widths.append(w)
+        cols_tags = colgroup.find_all('col')
+        if cols_tags:
+            col_widths = [_parse_width(ct.get('style', ''), ct.get('width', ''))
+                          for ct in cols_tags]
 
-    # Method 2: widths from first row cells
     if not col_widths:
-        first_row_cells = rows[0].find_all(['td', 'th'])
+        first_row_cells = rows_html[0].find_all(['td', 'th'])
         if first_row_cells:
             widths = []
-            for cell in first_row_cells:
-                w = _parse_width(cell.get('style', ''), cell.get('width', ''))
-                widths.append(w)
+            for fc in first_row_cells:
+                w = _parse_width(fc.get('style', ''), fc.get('width', ''))
+                cs = int(fc.get('colspan', 1) or 1)
+                if cs > 1 and w:
+                    per_col = (w[0] / cs, w[1])
+                    widths.extend([per_col] * cs)
+                else:
+                    widths.append(w)
             if any(w is not None for w in widths):
                 col_widths = widths
 
-    # Apply widths to docx table
     if col_widths:
-        from docx.oxml import OxmlElement
-
-        # Pad or trim to max_cols
-        while len(col_widths) < max_cols:
+        while len(col_widths) < actual_cols:
             col_widths.append(None)
-        col_widths = col_widths[:max_cols]
+        col_widths = col_widths[:actual_cols]
 
-        # Compute resolved width in inches for each column
-        resolved = [None] * max_cols
+        resolved = [None] * actual_cols
         has_pct = any(isinstance(w, tuple) and w[1] == '%' for w in col_widths if w)
         has_px = any(isinstance(w, tuple) and w[1] == 'px' for w in col_widths if w)
 
@@ -886,7 +1191,6 @@ def _add_table_to_docx(doc, table_elem):
                     if w and w[1] == 'px':
                         resolved[j] = total_width_inches * w[0] / total_px
 
-        # Disable autofit and set fixed layout
         table.autofit = False
         tbl = table._tbl
         tblPr = tbl.tblPr if tbl.tblPr is not None else tbl._add_tblPr()
@@ -894,34 +1198,32 @@ def _add_table_to_docx(doc, table_elem):
         tblLayout.set(qn('w:type'), 'fixed')
         tblPr.append(tblLayout)
 
-        # Set width on columns AND every cell in each column
         for j, w_inches in enumerate(resolved):
             if w_inches:
                 table.columns[j].width = Inches(w_inches)
                 for row in table.rows:
                     row.cells[j].width = Inches(w_inches)
 
-    for i, row_elem in enumerate(rows):
-        cells = row_elem.find_all(['td', 'th'])
-        for j, cell in enumerate(cells):
-            if j >= max_cols:
-                continue
-            docx_cell = table.rows[i].cells[j]
-            # Clear default empty paragraph
-            docx_cell.text = ''
-            # Vertical alignment: parse from style, default to CENTER (Word table default)
-            cell_style = cell.get('style', '')
-            va_match = re.search(r'vertical-align:\s*(top|middle|bottom)', cell_style, re.IGNORECASE)
-            if va_match:
-                va_map = {'top': WD_ALIGN_VERTICAL.TOP, 'middle': WD_ALIGN_VERTICAL.CENTER, 'bottom': WD_ALIGN_VERTICAL.BOTTOM}
-                docx_cell.vertical_alignment = va_map.get(va_match.group(1).lower(), WD_ALIGN_VERTICAL.CENTER)
-            else:
-                # Default to center if not specified (common Word table behavior)
-                docx_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-            _fill_cell(doc, docx_cell, cell)
+    # --- Phase 6: Fill cell content ---
+    for (r, c), info in cell_map.items():
+        html_cell = info['cell']
+        docx_cell = table.cell(r, c)
+        docx_cell.text = ''
+
+        cell_style = html_cell.get('style', '')
+        va_match = re.search(r'vertical-align:\s*(top|middle|bottom)', cell_style, re.IGNORECASE)
+        if va_match:
+            va_map = {'top': WD_ALIGN_VERTICAL.TOP, 'middle': WD_ALIGN_VERTICAL.CENTER, 'bottom': WD_ALIGN_VERTICAL.BOTTOM}
+            docx_cell.vertical_alignment = va_map.get(va_match.group(1).lower(), WD_ALIGN_VERTICAL.CENTER)
+        else:
+            docx_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+
+        # Get cell width for constraining images
+        cell_width = docx_cell.width
+        _fill_cell(doc, docx_cell, html_cell, cell_width)
 
 
-def _fill_cell(doc, docx_cell, html_cell):
+def _fill_cell(doc, docx_cell, html_cell, cell_width=None):
     """Fill a docx table cell with HTML content including images."""
     from docx.shared import Inches
     import base64
@@ -953,7 +1255,7 @@ def _fill_cell(doc, docx_cell, html_cell):
         elif child.name == 'img':
             para = docx_cell.paragraphs[0] if first else docx_cell.add_paragraph()
             first = False
-            _add_image_to_cell(para, child)
+            _add_image_to_cell(para, child, cell_width)
             if cell_align is not None:
                 para.alignment = cell_align
         elif child.name == 'p':
@@ -968,7 +1270,7 @@ def _fill_cell(doc, docx_cell, html_cell):
             if imgs:
                 for sub in child.children:
                     if hasattr(sub, 'name') and sub.name == 'img':
-                        _add_image_to_cell(para, sub)
+                        _add_image_to_cell(para, sub, cell_width)
                     elif isinstance(sub, str) and sub.strip():
                         _set_run_font(para.add_run(sub.strip()))
                     elif hasattr(sub, 'name') and sub.name:
@@ -995,40 +1297,34 @@ def _fill_cell(doc, docx_cell, html_cell):
                     para.alignment = cell_align
 
 
-def _add_image_to_cell(para, img_tag):
-    """Add an image into a table cell paragraph."""
+def _add_image_to_cell(para, img_tag, cell_width=None):
+    """Add an image into a table cell paragraph, constrained to cell width."""
     from docx.shared import Inches
-    import base64
-    import re
-
-    src = img_tag.get('src', '')
-    if not src:
+    img_stream = _resolve_img_stream(img_tag)
+    if img_stream is None:
         return
 
-    img_stream = None
-
-    if src.startswith('/uploads/'):
-        img_path = os.path.join(UPLOAD_FOLDER, src.replace('/uploads/', '', 1))
-        if os.path.exists(img_path):
-            img_stream = img_path
-    elif '/uploads/' in src and not src.startswith('blob:'):
-        filename = src.split('/uploads/')[-1].split('?')[0]
-        img_path = os.path.join(UPLOAD_FOLDER, filename)
-        if os.path.exists(img_path):
-            img_stream = img_path
-    elif src.startswith('data:image/'):
-        match = re.match(r'data:image/[^;]+;base64,(.*)', src, re.DOTALL)
-        if match:
-            img_stream = io.BytesIO(base64.b64decode(match.group(1)))
-
-    if img_stream is not None:
-        try:
-            run = para.add_run()
-            run.add_picture(img_stream, width=Inches(2.5))
-        except Exception as e:
-            app.logger.error(f'Failed to add image to table cell: {e}')
+    try:
+        target_w, target_h = _parse_img_size(img_tag)
+        run = para.add_run()
+        pic = run.add_picture(img_stream)
+        # Use cell width as constraint; fall back to Inches(6) if unknown
+        max_width = cell_width if cell_width else Inches(6)
+        _apply_img_size(pic, target_w, target_h, max_width)
+        # Apply alignment from image style
+        align = _get_img_alignment(img_tag)
+        if align is not None:
+            para.alignment = align
+    except Exception as e:
+        app.logger.error(f'Failed to add image to table cell: {e}')
 
 # ---------- Main ----------
 if __name__ == '__main__':
     init_db()
-    app.run(debug=True, port=5000)
+    is_frozen = getattr(sys, 'frozen', False)
+    if is_frozen:
+        import webbrowser, threading
+        threading.Timer(1.5, lambda: webbrowser.open('http://127.0.0.1:5000')).start()
+        app.run(host='0.0.0.0', port=5000, debug=False)
+    else:
+        app.run(debug=True, port=5000)
