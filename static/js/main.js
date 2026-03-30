@@ -206,9 +206,17 @@ function initEditors() {
                 }
             });
 
-            // Track editor focus for toolbar switching
+            // Track editor focus for toolbar switching and visibility
             editor.on('focus', function() {
+                console.log('[DEBUG] editor focus, secId:', editor.id);
                 _onEditorFocus(editor);
+                // Always show sticky toolbar when editing, even at page top
+                _activateToolbarForced();
+            });
+            editor.on('blur', function() {
+                console.log('[DEBUG] editor blur');
+                // Restore normal scroll-based visibility after blur
+                _onEditorBlur();
             });
         },
         extended_valid_elements: 'img[class|src|border|alt|title|width|height|style|data-drawio-xml|loading]',
@@ -719,6 +727,7 @@ function _decodeDrawioXml(b64) {
 // ===== Sticky Toolbar & Editor Switching =====
 var _activeSecId = null;
 var _scrollSwitchTimer = null;
+var _toolbarForcedMode = false;  // true when editor is focused (click mode)
 
 function _onEditorFocus(editor) {
     var secId = editor.id;
@@ -742,9 +751,28 @@ function _updateSecLabel(secId) {
 function _updateHeaderVisibility() {
     var navbar = document.getElementById('mainNavbar');
     var toolbar = document.getElementById('stickyToolbar');
-    var showToolbar = window.scrollY > 10;
+    // When editor is focused (click mode), toolbar is already forced visible - do not override
+    if (_toolbarForcedMode) return;
+    var showToolbar = window.scrollY > 60;
     navbar.classList.toggle('navbar-hidden', showToolbar);
     toolbar.classList.toggle('visible', showToolbar);
+}
+
+function _activateToolbarForced() {
+    // Force sticky toolbar to show (used when editor gains focus)
+    _toolbarForcedMode = true;
+    var navbar = document.getElementById('mainNavbar');
+    var toolbar = document.getElementById('stickyToolbar');
+    console.log('[DEBUG] _activateToolbarForced called, navbar:', !!navbar, 'toolbar:', !!toolbar);
+    navbar.classList.add('navbar-hidden');
+    toolbar.classList.add('visible');
+    console.log('[DEBUG] toolbar classes after:', toolbar.className);
+}
+
+function _onEditorBlur() {
+    // After blur, clear forced state and restore scroll-based visibility
+    _toolbarForcedMode = false;
+    _updateHeaderVisibility();
 }
 
 function _getMostVisibleSection() {
@@ -768,11 +796,18 @@ function _getMostVisibleSection() {
 }
 
 function _onScroll() {
+    // When user scrolls past navbar after clicking, hand off to scroll-based visibility
+    if (window.scrollY > 60 && _toolbarForcedMode) {
+        _toolbarForcedMode = false;
+    } else if (window.scrollY <= 60) {
+        // Back at top - restore click-mode possible (toolbar hidden until focus)
+        _toolbarForcedMode = false;
+    }
     _updateHeaderVisibility();
 
     // Only auto-switch editors when scrolled past navbar
     clearTimeout(_scrollSwitchTimer);
-    if (window.scrollY > 10) {
+    if (window.scrollY > 60) {
         _scrollSwitchTimer = setTimeout(function() {
             var visibleId = _getMostVisibleSection();
             if (visibleId && visibleId !== _activeSecId) {
@@ -795,6 +830,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (navbar && spacer) {
         spacer.style.height = navbar.offsetHeight + 'px';
     }
+    // Initialize toolbar visibility on page load
+    _updateHeaderVisibility();
 
     renderSections();
     initEditors();

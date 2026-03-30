@@ -955,61 +955,122 @@ def _add_image_to_docx(doc, img_tag):
     except Exception as e:
         app.logger.error(f'Failed to add image to docx: {e}')
 
-def _add_formatted_runs(para, element, fallback_text):
-    """Add runs with formatting from HTML element."""
+def _add_formatted_runs(para, element, fallback_text=None):
+    """Add runs with formatting from HTML element.
+
+    Uses sequential traversal: when encountering text followed by a child element,
+    then more text, each text segment is added separately (not concatenated).
+    Formatting from ancestor elements is accumulated and applied to all descendant text.
+    """
     from docx.shared import RGBColor
+
     if element is None:
         _set_run_font(para.add_run(fallback_text))
         return
 
-    for child in element.children if element else []:
-        if isinstance(child, str):
-            if child.strip():
-                _set_run_font(para.add_run(child))
-        elif child.name == 'strong' or child.name == 'b':
-            run = para.add_run(child.get_text())
-            run.bold = True
-            _set_run_font(run)
-        elif child.name == 'em' or child.name == 'i':
-            run = para.add_run(child.get_text())
-            run.italic = True
-            _set_run_font(run)
-        elif child.name == 'u':
-            run = para.add_run(child.get_text())
-            run.underline = True
-            _set_run_font(run)
-        elif child.name == 'span':
-            # Handle span with inline styles (color, background, strikethrough)
-            run = para.add_run(child.get_text())
-            _set_run_font(run)
-            style_str = child.get('style', '')
-            # Text color
-            color_match = re.search(r'color:\s*rgb\((\d+),\s*(\d+),\s*(\d+)\)', style_str)
-            if not color_match:
-                color_match = re.search(r'color:\s*#([0-9a-fA-F]{6})', style_str)
-                if color_match:
-                    hex_color = color_match.group(1)
-                    run.font.color.rgb = RGBColor(int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16))
+    def add_run_with_fmt(text, fmt):
+        """Add a text run with given format dict.
+
+        Uses direct XML manipulation for solid text background (w:shd) to avoid
+        python-docx highlight_color which produces semi-transparent highlighter effect.
+        """
+        if not text:
+            return
+        run = para.add_run(text)
+        run.bold = fmt.get('bold')
+        run.italic = fmt.get('italic')
+        run.underline = fmt.get('underline')
+        run.font.strike = fmt.get('strike')
+        # Set text color
+        if fmt.get('color'):
+            run.font.color.rgb = fmt['color']
+        # Set solid text background via w:shd (NOT w:highlight which is semi-transparent)
+        # w:shd w:val="clear" w:fill="RRGGBB" gives solid background color
+        if fmt.get('bg_fill'):
+            from docx.oxml import OxmlElement
+            rPr = run.element.get_or_add_rPr()
+            shd = OxmlElement('w:shd')
+            shd.set(qn('w:val'), 'clear')
+            shd.set(qn('w:fill'), fmt['bg_fill'].upper())
+            rPr.append(shd)
+        _set_run_font(run)
+
+    def add_recursive(elem, fmt):
+        """Recursively process element and its children in document order."""
+        children = list(elem.children)
+        i = 0
+        while i < len(children):
+            child = children[i]
+            if isinstance(child, str):
+                # Direct text node: add immediately with current fmt
+                add_run_with_fmt(child, fmt)
+                i += 1
+            elif child.name in ('strong', 'b'):
+                # Bold element: recurse with bold flag set, then restore
+                fmt['bold'] = True
+                add_recursive(child, fmt)
+                fmt.pop('bold', None)
+                i += 1
+            elif child.name in ('em', 'i'):
+                fmt['italic'] = True
+                add_recursive(child, fmt)
+                fmt.pop('italic', None)
+                i += 1
+            elif child.name == 'u':
+                fmt['underline'] = True
+                add_recursive(child, fmt)
+                fmt.pop('underline', None)
+                i += 1
+            elif child.name in ('s', 'strike', 'del'):
+                fmt['strike'] = True
+                add_recursive(child, fmt)
+                fmt.pop('strike', None)
+                i += 1
+            elif child.name == 'span':
+                # Span: copy fmt, apply span's style, then recurse
+                span_fmt = dict(fmt)
+                _apply_element_style(child, span_fmt)
+                add_recursive(child, span_fmt)
+                i += 1
+            elif child.name is not None:
+                # Other element: recurse with current fmt
+                add_recursive(child, fmt)
+                i += 1
             else:
-                run.font.color.rgb = RGBColor(int(color_match.group(1)), int(color_match.group(2)), int(color_match.group(3)))
-            # Background color (highlight)
-            bg_match = re.search(r'background-color:\s*rgb\((\d+),\s*(\d+),\s*(\d+)\)', style_str)
-            if not bg_match:
-                bg_match = re.search(r'background-color:\s*#([0-9a-fA-F]{6})', style_str)
-                if bg_match:
-                    hex_color = bg_match.group(1)
-                    run.font.highlight_color = _rgb_to_highlight(int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16))
-            else:
-                run.font.highlight_color = _rgb_to_highlight(int(bg_match.group(1)), int(bg_match.group(2)), int(bg_match.group(3)))
-            # Text decoration: line-through
-            if 'text-decoration: line-through' in style_str or 'text-decoration:line-through' in style_str:
-                run.font.strike = True
-        elif child.name == 's' or child.name == 'strike' or child.name == 'del':
-            run = para.add_run(child.get_text())
-            run.font.strike = True
-            _set_run_font(run)
-        else:
-            _set_run_font(para.add_run(child.get_text()))
+                # NavigableString that's not pure text (e.g. Comment), skip
+                i += 1
+
+    # Start with element's own inline style applied as initial fmt
+    inherited = {}
+    _apply_element_style(element, inherited)
+    add_recursive(element, inherited)
+
+
+def _apply_element_style(elem, fmt):
+    """Extract inline CSS style from element and add to fmt dict."""
+    from docx.shared import RGBColor
+    style_str = elem.get('style', '') if elem else ''
+    # Text color - require color: to be at start or after ; to avoid matching background-color
+    color_match = re.search(r'(?:^|;)color:\s*rgb\((\d+),\s*(\d+),\s*(\d+)\)', style_str)
+    if not color_match:
+        color_match = re.search(r'(?:^|;)color:\s*#([0-9a-fA-F]{6})', style_str)
+        if color_match:
+            hex_color = color_match.group(1)
+            fmt['color'] = RGBColor(int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16))
+    else:
+        fmt['color'] = RGBColor(int(color_match.group(1)), int(color_match.group(2)), int(color_match.group(3)))
+    # Background color - store as hex string for w:shd (solid text background)
+    bg_match = re.search(r'background-color:\s*rgb\((\d+),\s*(\d+),\s*(\d+)\)', style_str)
+    if bg_match:
+        r, g, b = int(bg_match.group(1)), int(bg_match.group(2)), int(bg_match.group(3))
+        fmt['bg_fill'] = f'{r:02X}{g:02X}{b:02X}'
+    else:
+        bg_match = re.search(r'background-color:\s*#([0-9a-fA-F]{6})', style_str)
+        if bg_match:
+            fmt['bg_fill'] = bg_match.group(1).upper()
+    # Strikethrough
+    if 'text-decoration: line-through' in style_str or 'text-decoration:line-through' in style_str:
+        fmt['strike'] = True
 
 def _rgb_to_highlight(r, g, b):
     """Map RGB to closest WD_COLOR_INDEX highlight color."""

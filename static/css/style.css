@@ -210,6 +210,8 @@ body {
     padding: 24px 24px 20px;
     transition: box-shadow 0.3s var(--ease), transform 0.3s var(--ease);
     border: 0.5px solid var(--separator-opaque);
+    /* Reserve space for sticky toolbar + navbar when scrolling to this card */
+    scroll-margin-top: 100px;
 }
 .section-card:hover {
     box-shadow: var(--shadow-card-hover);
