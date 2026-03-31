@@ -208,13 +208,11 @@ function initEditors() {
 
             // Track editor focus for toolbar switching and visibility
             editor.on('focus', function() {
-                console.log('[DEBUG] editor focus, secId:', editor.id);
                 _onEditorFocus(editor);
                 // Always show sticky toolbar when editing, even at page top
                 _activateToolbarForced();
             });
             editor.on('blur', function() {
-                console.log('[DEBUG] editor blur');
                 // Restore normal scroll-based visibility after blur
                 _onEditorBlur();
             });
@@ -751,27 +749,34 @@ function _updateSecLabel(secId) {
 function _updateHeaderVisibility() {
     var navbar = document.getElementById('mainNavbar');
     var toolbar = document.getElementById('stickyToolbar');
-    // When editor is focused (click mode), toolbar is already forced visible - do not override
-    if (_toolbarForcedMode) return;
     var showToolbar = window.scrollY > 60;
-    navbar.classList.toggle('navbar-hidden', showToolbar);
-    toolbar.classList.toggle('visible', showToolbar);
+    if (_toolbarForcedMode) {
+        // Click mode: toolbar always visible, navbar stays in click-state (don't touch it)
+        toolbar.classList.add('visible');
+    } else {
+        navbar.classList.toggle('navbar-hidden', showToolbar);
+        toolbar.classList.toggle('visible', showToolbar);
+    }
 }
 
 function _activateToolbarForced() {
     // Force sticky toolbar to show (used when editor gains focus)
+    // Disable navbar transition to prevent animation when scroll takes over
     _toolbarForcedMode = true;
     var navbar = document.getElementById('mainNavbar');
     var toolbar = document.getElementById('stickyToolbar');
-    console.log('[DEBUG] _activateToolbarForced called, navbar:', !!navbar, 'toolbar:', !!toolbar);
-    navbar.classList.add('navbar-hidden');
-    toolbar.classList.add('visible');
-    console.log('[DEBUG] toolbar classes after:', toolbar.className);
+    if (navbar) {
+        navbar.classList.add('navbar-hidden');
+        navbar.style.transition = 'none';
+    }
+    if (toolbar) toolbar.classList.add('visible');
 }
 
 function _onEditorBlur() {
     // After blur, clear forced state and restore scroll-based visibility
     _toolbarForcedMode = false;
+    var navbar = document.getElementById('mainNavbar');
+    if (navbar) navbar.style.transition = '';
     _updateHeaderVisibility();
 }
 
@@ -796,12 +801,13 @@ function _getMostVisibleSection() {
 }
 
 function _onScroll() {
-    // When user scrolls past navbar after clicking, hand off to scroll-based visibility
-    if (window.scrollY > 60 && _toolbarForcedMode) {
-        _toolbarForcedMode = false;
-    } else if (window.scrollY <= 60) {
-        // Back at top - restore click-mode possible (toolbar hidden until focus)
-        _toolbarForcedMode = false;
+    if (window.scrollY <= 60) {
+        // Back at top - release forced mode and restore transition for smooth navbar return
+        if (_toolbarForcedMode) {
+            _toolbarForcedMode = false;
+            var navbar = document.getElementById('mainNavbar');
+            if (navbar) navbar.style.transition = '';
+        }
     }
     _updateHeaderVisibility();
 
