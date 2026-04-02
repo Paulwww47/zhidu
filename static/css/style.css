@@ -113,6 +113,12 @@ body {
     opacity: 0;
     pointer-events: none;
 }
+/* Edit mode: hide navbar during click-to-edit (always, regardless of scroll) */
+.navbar.navbar-edit-hidden {
+    transform: translateY(-100%);
+    opacity: 0;
+    pointer-events: none;
+}
 
 .navbar .navbar-brand {
     color: var(--label-primary) !important;

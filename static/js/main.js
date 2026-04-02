@@ -750,25 +750,23 @@ function _updateHeaderVisibility() {
     var navbar = document.getElementById('mainNavbar');
     var toolbar = document.getElementById('stickyToolbar');
     var showToolbar = window.scrollY > 60;
+
     if (_toolbarForcedMode) {
-        // Click mode: toolbar always visible, navbar stays in click-state (don't touch it)
+        // Edit mode: toolbar always visible, navbar stays hidden via navbar-edit-hidden
         toolbar.classList.add('visible');
     } else {
+        // Normal scroll-based: navbar-hidden controls visibility
         navbar.classList.toggle('navbar-hidden', showToolbar);
         toolbar.classList.toggle('visible', showToolbar);
     }
 }
 
 function _activateToolbarForced() {
-    // Force sticky toolbar to show (used when editor gains focus)
-    // Disable navbar transition to prevent animation when scroll takes over
     _toolbarForcedMode = true;
     var navbar = document.getElementById('mainNavbar');
     var toolbar = document.getElementById('stickyToolbar');
-    if (navbar) {
-        navbar.classList.add('navbar-hidden');
-        navbar.style.transition = 'none';
-    }
+    // Use dedicated edit-hidden class - does NOT interfere with scroll-based navbar-hidden
+    if (navbar) navbar.classList.add('navbar-edit-hidden');
     if (toolbar) toolbar.classList.add('visible');
 }
 
@@ -776,7 +774,10 @@ function _onEditorBlur() {
     // After blur, clear forced state and restore scroll-based visibility
     _toolbarForcedMode = false;
     var navbar = document.getElementById('mainNavbar');
-    if (navbar) navbar.style.transition = '';
+    var toolbar = document.getElementById('stickyToolbar');
+    // Remove edit-mode hidden, restoring normal scroll-based logic
+    if (navbar) navbar.classList.remove('navbar-edit-hidden');
+    if (toolbar) toolbar.classList.remove('visible');
     _updateHeaderVisibility();
 }
 
@@ -801,17 +802,9 @@ function _getMostVisibleSection() {
 }
 
 function _onScroll() {
-    if (window.scrollY <= 60) {
-        // Back at top - release forced mode and restore transition for smooth navbar return
-        if (_toolbarForcedMode) {
-            _toolbarForcedMode = false;
-            var navbar = document.getElementById('mainNavbar');
-            if (navbar) navbar.style.transition = '';
-        }
-    }
     _updateHeaderVisibility();
 
-    // Only auto-switch editors when scrolled past navbar
+    // Auto-switch editors when scrolled past navbar
     clearTimeout(_scrollSwitchTimer);
     if (window.scrollY > 60) {
         _scrollSwitchTimer = setTimeout(function() {
